@@ -2,7 +2,11 @@
  * File:   defines.h
  * Author: DG4SN
  *
- * Created on 22. März 2022, 15:59
+ * Created on 22. MÃ¤rz 2022, 15:59
+ * 
+ * Modified 23-June-2025 2E0UMK
+ * Rotated the display. 
+ * 
  */
 
 #ifndef DEFINES_H
@@ -31,7 +35,7 @@ extern "C"
   
 #define DISPLAY_I2C_ADDR    0x78  
 #define DISPLAY_INIT_DELAY  500  //ms
-#define DISPLAY_ROTATE      FALSE  
+#define DISPLAY_ROTATE      TRUE // Some variants need teh display rotated. This may become a menu item.
   
 #define _XTAL_FREQ 16000000
 
