@@ -11,6 +11,9 @@ To do:
 
 ![ATU-100_EXT_YAF](images/ATU-100_EXT_YAF.jpg)
 
+## The reworked Microchip-IDE-Compatible project by DG4SN
+https://github.com/DG4SN/ATU-100-EXT-YAF
+
 ## Motivation
 After I have bought a Chinese clone of N7DDC Antenna tune ATU-100 EXT I wasn’t really satisfied.
 The tuner was not able to work with my QRP transmitter. Also the shown power was very inaccurate.
