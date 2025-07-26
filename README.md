@@ -1,4 +1,13 @@
 # Antenna tuner - ATU-100 EXT - Yet Another Firmware
+A tweaked version of DG4SN's version of N7DCC's project. Tweaks my 2E0UMK as follows:
+- Display is rotated 180 degrees.
+
+To do:
+- Add a setup menu option to rotate the display.
+- Add an alternative calibration means, where the button is used to sample the output power rather than thresholding the ADC.
+- ...or a short delay after thresholding the ADC before actually taking the calibration sample.
+- Add power / SWR gauges, which would be much more useful than flickery numbers.
+  
 ![ATU-100_EXT_YAF](images/ATU-100_EXT_YAF.jpg)
 
 ## Motivation
