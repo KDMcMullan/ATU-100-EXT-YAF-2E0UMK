@@ -2,10 +2,13 @@
  * File:   defines.h
  * Author: DG4SN
  *
- * Created on 22. März 2022, 15:59
+ * Created on 22. MÃ¤rz 2022, 15:59
  * 
  * Modified 23-June-2025 2E0UMK
  * Rotated the display. 
+ * 
+ * Modified 10-Aug-2025 2E0UMK
+ * Added a little bit of credit to the About screen.
  * 
  */
 
@@ -234,7 +237,7 @@ global_t extern global;
 
 const char str_ATU100EXT[] = "ATU-100";
 const char str_YAF[]       = "EXT-YAF";
-const char str_Version[]   =  "V0.68";
+const char str_Version[]   =  "V0.68.1"; // 2E0UMK
 const char str_YetAnother[] = "YetAnother";
 const char str_Firmware[] = "Firmware";
 const char str_Hardware[] = "Hardware";
@@ -242,6 +245,9 @@ const char str_designed[] = "designed";
 const char str_by[] ="by";
 const char str_N7DCC[] = "N7DDC";
 const char str_DG4SN[] = "DG4SN";
+
+const char str_Tweaks_by[] ="Tweaks by";
+const char str_2E0UMK[] ="2E0UMK";
 
 const char str_SWR[]   =  "SWR";
 const char str_PWR[]   =  "PWR";
