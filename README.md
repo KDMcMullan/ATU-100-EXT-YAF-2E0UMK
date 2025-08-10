@@ -1,9 +1,9 @@
 # Antenna tuner - ATU-100 EXT - Yet Another Firmware
 A tweaked version of DG4SN's version of N7DCC's project.
 
-I shared all of DG4SN's motivations: particularly the ability to use an environment I undestand. I use the tuner QRP with quite an elderly RT, and wanted to be able to switch on and off auto-tune without adding an exta button. Unfortunately, I found two little places where DG4SN's version could be better:
-- My device must be slightly different, since when I flashed thw DG4SN code, my display was upside-down.
-- The auto cal wasn't working. Looking at the code, I believe that once teh threshold is passed, that value is used as the cal value, if it's "stable" (ie it's been the same for two sucessive iterations). 
+I share all of DG4SN's given motivations for this peoject: particularly the ability to use an environment I undestand. I use the tuner QRP with quite an elderly RT, and wanted to be able to switch on and off auto-tune without adding an exta button. Unfortunately, Sven has [stopped developing the firmware](https://github.com/DG4SN/ATU-100-EXT-YAF/issues/2#issuecomment-2628881203). What better opportunity for a play? There are a couple of places I felt it could use some improvement:
+- My device must be slightly different, since when I flashed the DG4SN code, my display was upside-down.
+- The auto cal wasn't working. Looking at the code, I believe that once the threshold is passed, that value is used as the calibration value, if it's stable. The definition of "stable" is that it's been the same for two sucessive iterations. This is thought to be insufficient. 
 - I would like a power meter rather than just a flickery number.
 
 I'm sure they would have fixed the first two, in fact another ham modified the screen rotation, but I wanted to have a go at this myself, and what's the point in having it in my preferred environment, if I don't play?! Ultimately, I'll add a menu item to rotate, and I'll ahve a play with a power peter and maybe a rolling history of power or something fancy later.
