@@ -1,3 +1,18 @@
+/* 
+ * File:   menu.c
+ * Author: DG4SN
+ *
+ * Created March 2022
+ * 
+ * Modified 23-June-2025 2E0UMK
+ * Rotated the display. 
+ *
+ * Modified 10-Aug-2025 2E0UMK
+ * Added delays in the calibration routine after passing the threshold.
+ * Added a little bit of credit to the About screen.
+ * 
+ */
+
 #include "defines.h"
 
 #define MENU_MEMORY_TIMEOUT   500 // x 10ms
@@ -962,6 +977,8 @@ static void MENU_CalPWR_Run(void)
   {
     if (global.adc_f_mV > ADC_CAL_START)
     {
+      __delay_ms(250); // 250ms block seems to allow time for Tx power to ramp
+      ADC_Run(); // resample        
       if (global.adc_f_mV == MENU_var.cal.adc_value_old) //stable value current == old
       {
         MENU_var.cal.adc_value[MENU_var.cal.step] = global.adc_f_mV; //save 
@@ -1530,7 +1547,14 @@ static void MENU_About_Run(void)
       DISP_Str(DISP_COL_CENTER,2,str_by,0);
       DISP_Str(DISP_COL_CENTER,3,str_DG4SN,0);
     }
-    else
+    else if(MENU_var.about.step == 1)
+    {
+      MENU_var.about.step++;
+      DISP_Clr();
+      DISP_Str(DISP_COL_CENTER,1,str_Tweaks_by,0);
+      DISP_Str(DISP_COL_CENTER,2,str_2E0UMK,0);
+    }
+    else    
     {
       MENU_Init();
       return;
