@@ -1,5 +1,13 @@
 /**
- * Eeprom function
+ * ATU-100_EXT_YAF 
+ * Yet Another Firmware
+ * by DG4SN
+ *
+ * EEPROM function
+ *
+ * Modified 09-Sep-2026 2E0UMK
+ * Added flag to store display rotation (among other things).
+ *
  */
 
 #include "defines.h"
@@ -16,6 +24,18 @@ void EEPROM_Init(void)
   EEPROM_Read((uint8_t)&ee_cal_point_1, &global.cal_point[1], sizeof(global.cal_point[1]));
   EEPROM_Read((uint8_t)&ee_cal_offset, &global.cal_offset, sizeof(global.cal_offset));
   EEPROM_Read((uint8_t)&ee_cal_gain, &global.cal_gain, sizeof(global.cal_gain));
+
+  EEPROM_Read((uint8_t)&ee_flags, &global.flags, sizeof(global.flags));
+
+// Stopgap so that an EEPROM which hasn't previously contained our flags byte
+// is interpreted properly rather than treating the erased EEPROM value 0xFF
+// as "all options enabled".
+
+  if (global.flags == 0xFF)
+  {
+    global.flags = 0x00;
+  }
+  
 }
 
 
