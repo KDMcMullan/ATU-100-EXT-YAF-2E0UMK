@@ -2,6 +2,10 @@
  * ATU-100_EXT_YAF 
  * Yet Another Firmware
  * by DG4SN
+ *
+ * Modified 09-Sep-2026 2E0UMK
+ * Added display rotate on init.
+ *
  */
 
 // PIC16F1938 Configuration Bit Settings
@@ -180,7 +184,7 @@ void main(void)
 
   
   DELAY_ms(DISPLAY_INIT_DELAY);
-  DISP_Init(DISPLAY_I2C_ADDR, DISPLAY_ROTATE);
+  DISP_Init(DISPLAY_I2C_ADDR, (global.flags & FLAG_DISPLAY_ROTATE_MASK) != 0);
   DISP_Str(DISP_COL_CENTER,0,str_ATU100EXT,0);
   DISP_Str(DISP_COL_CENTER,1,str_YAF,0);
   DISP_Str(DISP_COL_CENTER,2,str_Version,0);
