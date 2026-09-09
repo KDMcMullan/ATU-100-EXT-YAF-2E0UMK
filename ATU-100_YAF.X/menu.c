@@ -10,7 +10,10 @@
  * Modified 10-Aug-2025 2E0UMK
  * Added delays in the calibration routine after passing the threshold.
  * Added a little bit of credit to the About screen.
- * 
+ *
+ * Modified 09-Sep-2026 2E0UMK
+ * Added display rotate selection.
+ *
  */
 
 #include "defines.h"
@@ -76,6 +79,12 @@ static union
     int16_t delay_sec;
   } sleep; 
   
+  struct // display rotation
+  {
+    uint8_t cursor;
+    uint8_t rotate;
+  } display;
+
   struct
   {
     uint8_t update_cnt;
@@ -93,7 +102,6 @@ static union
     uint16_t timeout;
     const menu_t **ptrMenu;
   } sub;
-  
   
   struct
   {
@@ -174,6 +182,10 @@ static void MENU_TParam_Run(void);
 static void MENU_Sleep_Init(void);
 static void MENU_Sleep_Run(void);
 
+static void MENU_Display_Init(void); // display rotation
+static void MENU_Display_Run(void);
+static void MENU_Display_Update(void);
+
 static void MENU_CalPWR_Init(void);
 static void MENU_CalPWR_Run(void);
 
@@ -209,11 +221,12 @@ const menu_t menuLoad    ={str_MENU_Load, MENU_MemoryLoad_Init, MENU_Memory_Run}
 
 const menu_t menuAbout    ={str_MENU_About, MENU_About_Init, MENU_About_Run};
 
-
-
 const menu_t menuTParam   ={str_MENU_TunePar, MENU_TParam_Init, MENU_TParam_Run};
 
 const menu_t menuSleep    ={str_MENU_Sleep, MENU_Sleep_Init, MENU_Sleep_Run};
+
+const menu_t menuDisplay = {str_MENU_Display, MENU_Display_Init, MENU_Display_Run};
+
 const menu_t menuRelTest  ={str_MENU_RelTest, MENU_RelTest_Init, MENU_RelTest_Run};
 const menu_t menuCal      ={str_MENU_Cal, MENU_CalPWR_Init, MENU_CalPWR_Run};
 
@@ -221,9 +234,8 @@ const menu_t menuCal      ={str_MENU_Cal, MENU_CalPWR_Init, MENU_CalPWR_Run};
 #define MENU_SUBTOP_ITEMS    6
 const menu_t* ptrSubTopMenu[MENU_SUBTOP_ITEMS] = { &menuBypass, &menuLoad, &menuSave, &menuReset, &menuSubSetup, &menuAbout};
 
-#define MENU_SUBSETUP_ITEMS    4
-const menu_t* ptrSubSetupMenu[MENU_SUBSETUP_ITEMS] = { &menuTParam, &menuSleep, &menuCal, &menuRelTest };
-
+#define MENU_SUBSETUP_ITEMS    5
+const menu_t* ptrSubSetupMenu[MENU_SUBSETUP_ITEMS] = { &menuTParam, &menuSleep, &menuCal, &menuDisplay, &menuRelTest };
 const menu_t menuTune     ={NULL, MENU_Tune_Init, MENU_Tune_Run};
 const menu_t menuNameEdit ={NULL, MENU_NameEdit_Init, MENU_NameEdit_Run};
 const menu_t menuStartupSave ={NULL, MENU_StartupSave_Init, MENU_StartupSave_Run};
@@ -708,7 +720,94 @@ static void MENU_Sleep_Run(void)
   }
 }
 
+//-- Menu Display Rotate  --------------------------------------------------------------------------------------------------
 
+static void MENU_Display_Update(void)
+{
+    if (MENU_var.display.rotate)
+    {
+        DISP_Str(0, 0, str_Rotate,
+                 MENU_var.display.cursor == 0);
+    }
+    else
+    {
+        DISP_Str(0, 0, str_Normal,
+                 MENU_var.display.cursor == 0);
+    }
+
+    DISP_Str(0, 3, str_Save,
+             MENU_var.display.cursor == 1);
+
+    DISP_Str(7, 3, str_Esc,
+             MENU_var.display.cursor == 2);
+}
+
+static void MENU_Display_Init(void)
+{
+    DISP_Clr();
+    BUTTON_Reset();
+
+    MENU_var.display.cursor = 0;
+
+    MENU_var.display.rotate =
+        (global.flags & FLAG_DISPLAY_ROTATE_MASK) != 0;
+
+    MENU_Display_Update();
+}
+
+static void MENU_Display_Run(void)
+{
+    if (BUTTON_count == BUTTON_RELEASED)
+    {
+        MENU_var.display.cursor++;
+
+        if (MENU_var.display.cursor > 2)
+        {
+            MENU_var.display.cursor = 0;
+        }
+
+        MENU_Display_Update();
+    }
+
+    if (BUTTON_count == BUTTON_LONG_PRESSED)
+    {
+        BUTTON_count -= BUTTON_LONG_REPEAT_DELAY_MAX;
+
+        if (MENU_var.display.cursor == 0)
+        {
+            MENU_var.display.rotate =
+                !MENU_var.display.rotate;
+
+            MENU_Display_Update();
+        }
+
+        if (MENU_var.display.cursor == 1)
+        {
+            if (MENU_var.display.rotate)
+            {
+                global.flags |= FLAG_DISPLAY_ROTATE_MASK;
+            }
+            else
+            {
+                global.flags &= ~FLAG_DISPLAY_ROTATE_MASK;
+            }
+
+            EEPROM_Write((uint8_t)&ee_flags,
+                         &global.flags,
+                         sizeof(global.flags));
+
+            DISP_Init(DISPLAY_I2C_ADDR,
+                      (global.flags & FLAG_DISPLAY_ROTATE_MASK) != 0);
+
+            MENU_Init();
+        }
+
+        if (MENU_var.display.cursor == 2)
+        {
+            MENU_Init();
+        }
+    }
+}
 
 //-- Menu_RelTest  --------------------------------------------------------------------------------------------------
 
