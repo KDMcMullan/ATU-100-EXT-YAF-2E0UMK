@@ -2,7 +2,11 @@
  * File:   eeprom.h
  * Author: DG4SN
  *
- * Created on 22. März 2022, 16:09
+ * Created on 22. MÃ¤rz 2022, 16:09
+ * 
+ * Modified 09-Sep-2026 2E0UMK
+ * Added boolean flags for EEPROM storage of settings such as screen rotation.
+ * 
  */
 
 #ifndef EEPROM_H
@@ -37,6 +41,7 @@ __eeprom  tunemem_t ee_tunemem[TUNEMEM_ITEMS] ={
   
 };
           
+__eeprom uint8_t ee_flags = 0x00; // bit0=screen rotation, bit7-1 = reserved
 
 
 void EEPROM_Init(void);    
