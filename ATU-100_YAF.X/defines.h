@@ -10,6 +10,9 @@
  * Modified 10-Aug-2025 2E0UMK
  * Added a little bit of credit to the About screen.
  * 
+ * Modified 09-Sep-2026 2E0UMK
+ * Added boolean flags for EEPROM storage of settings such as screen rotation.
+ * 
  */
 
 #ifndef DEFINES_H
@@ -29,7 +32,6 @@ extern "C"
 //  the internal oscillator is 16 Mhz
 //  the xc8 compiler needs the crystal freq defined here
 
-
 // Include debug with software uart  
 // #define DEBUG_UART 
 
@@ -38,7 +40,8 @@ extern "C"
   
 #define DISPLAY_I2C_ADDR    0x78  
 #define DISPLAY_INIT_DELAY  500  //ms
-#define DISPLAY_ROTATE      TRUE // Some variants need teh display rotated. This may become a menu item.
+
+//#define DISPLAY_ROTATE      TRUE // Some variants need teh display rotated. This may become a menu item.
   
 #define _XTAL_FREQ 16000000
 
@@ -49,23 +52,16 @@ extern "C"
 #define DELAY_5_us() _delay((unsigned long)(DELAY_5_US_CLOCKS))
 //#define DELAY_100_US_CLOCKS 400
 //#define DELAY_100_us() _delay((unsigned long)(DELAY_100_US_CLOCKS))  
-  
 
 #define DELAY_1_MS_CLOCKS 4000  
 #define DELAY_ms(x) UTILI_Delay_ms(x)
 
 #define MAX_SWR                 999  //9.99 
 #define SWR_FORWORD_THRESHOLD   100 //mV  
-  
-
 
 #define CAL_GAIN_MULTIPLIER      4096  
 #define DIR_OUTPUT 0
 #define DIR_INPUT 1  
-  
-  
-
-  
   
 #define UART_PIN_W LATAbits.LATA6
 #define UART_PIN_DIR TRISAbits.TRISA6
@@ -149,6 +145,20 @@ extern "C"
 #define REL_IND_7           LATAbits.LATA4 
 #define REL_IND_7_DIR       TRISAbits.TRISA4      
  
+//---- Boolean Flags ----------------------------------------------------    
+
+#define FLAG_DISPLAY_ROTATE    0 // bit position (not mask))
+#define FLAG_FOO               1
+#define FLAG_2                 2
+#define FLAG_3                 3
+#define FLAG_4                 4
+#define FLAG_5                 5
+#define FLAG_6                 6
+#define FLAG_7                 7
+
+#define FLAG_DISPLAY_ROTATE_MASK    (1 << FLAG_DISPLAY_ROTATE)
+//#define FLAG_FOO_ROTATE_MASK    (1 << FLAG_FOO_ROTATE)
+
 //----------------------------------------------------------------------    
 
 #define TUNEMEM_ITEMS       10
@@ -189,7 +199,7 @@ const    int16_t CAP_VALUES[7] = {10, 22, 47, 100, 220, 470, 1000}; //Cap in pF
 const    int16_t IND_VALUES[7] = {50, 100, 220, 450, 1000, 2200, 4400}; //Ind in nH
   
   
-//Note: eeprom values in global due to eeprom address felxibility
+//Note: eeprom values in global due to eeprom address flexibility
   typedef struct
   {
     int16_t PWR; //deziWatt -> 10 = 1W
@@ -214,12 +224,11 @@ const    int16_t IND_VALUES[7] = {50, 100, 220, 450, 1000, 2200, 4400}; //Ind in
     uint8_t cap_relays;
     uint8_t ind_relays;
 
-  }global_t;
+    uint8_t flags; // bit 0 is screen rotation, bits 7 to 1 are reserved
+    
+  } global_t;
   
-
-  
-  
-  
+ 
 //variables
   
   
@@ -237,7 +246,7 @@ global_t extern global;
 
 const char str_ATU100EXT[] = "ATU-100";
 const char str_YAF[]       = "EXT-YAF";
-const char str_Version[]   =  "V0.68.1"; // 2E0UMK
+const char str_Version[]   =  "V0.68.2"; // 2E0UMK
 const char str_YetAnother[] = "YetAnother";
 const char str_Firmware[] = "Firmware";
 const char str_Hardware[] = "Hardware";
@@ -258,11 +267,10 @@ const char str_C_[]   =  "C=";
 const char str_C_L[] = ">C-L";
 const char str_L_C[] = ">L-C";
 
-
 const char str__Tune_[] = " Tune ";
 
 const char str_Esc[] = "Esc";
-//const char str_Esc_[] = "Esc ";
+
 const char str_Off[] = "Off";
 const char str_On[] = " On";
 const char str_Ok[] = "Ok";
@@ -271,12 +279,16 @@ const char str_AUTO[]  = "AUTO";
 const char str_Power[] = "Power";
 const char str_Point[] = "Point";
 
-const char str_Bypass[]    = " Bypass ";
+const char str_Bypass[] = " Bypass ";
     
 //const char str_Sec[] = "Sec";
 const char str_Delay[] = "Delay";
 const char str_Sleep[] = "Sleep";
 const char str_sleeping[] ="sleeping";
+
+const char str_MENU_Display[] = "Display   ";
+const char str_Normal[] = "Normal";
+const char str_Rotate[] = "Rotate";
 
 const char str_Auto[]   =  "Auto";
 const char str_Start[]   =  "Start";
@@ -297,7 +309,7 @@ const char str_MENU_About[]         =  "About     ";
   
 
 const char str_SpaceLine[] = "          ";
-const char str_WaitForHF[] = "wait f. HF";
+const char str_WaitForHF[] = "wait f. HF"; // something like "Tx Wait" might be better, but leave it as this needs rework
 const char str_Running[]   = " Running  "; 
 const char str_Break[]     = "  Break   ";
 const char str_PWR_low[]   = " PWR low  ";
@@ -313,11 +325,7 @@ const char str_Ready[]     = "  Ready   ";
 
 
  const char NameEditChar[] =" 0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ?!/+-#%$_";
- 
- 
 
- 
- 
  
 #ifdef	__cplusplus
 }
