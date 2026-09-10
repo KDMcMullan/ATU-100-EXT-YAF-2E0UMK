@@ -14,6 +14,13 @@
  * Modified 09-Sep-2026 2E0UMK
  * Added display rotate selection.
  *
+ * Modified 10-Sep-2026 2E0UMK
+ * Added debug display selection. Tidied up the code comments around a
+ * previous attempt at this.
+ * 
+ * Fixed a buglet in the use of MENU_var.tparam.cursor which should have been
+ * MENU_var.sleep.cursor .
+ *
  */
 
 #include "defines.h"
@@ -87,6 +94,12 @@ static union
 
   struct
   {
+    uint8_t cursor;
+    uint8_t enable;
+  } debug;
+
+  struct
+  {
     uint8_t update_cnt;
     int16_t old_pwr;
     int16_t sleep_timer;
@@ -155,9 +168,6 @@ static union
 static uint8_t MENU_cursor;
 
 
-
-
-
 //Prototypes
 
 static void MENU_Main_Init(void);
@@ -168,7 +178,6 @@ static void MENU_SubTop_Init(void);
 
 static void MENU_Sub_Run(void);
 static void MENU_Sub_Update(void);
-
 
 static void MENU_Reset_Init(void);
 static void MENU_Bypass_Init(void);
@@ -185,6 +194,10 @@ static void MENU_Sleep_Run(void);
 static void MENU_Display_Init(void); // display rotation
 static void MENU_Display_Run(void);
 static void MENU_Display_Update(void);
+
+static void MENU_Debug_Init(void); // debug mode
+static void MENU_Debug_Run(void);
+static void MENU_Debug_Update(void);
 
 static void MENU_CalPWR_Init(void);
 static void MENU_CalPWR_Run(void);
@@ -228,14 +241,17 @@ const menu_t menuSleep    ={str_MENU_Sleep, MENU_Sleep_Init, MENU_Sleep_Run};
 const menu_t menuDisplay = {str_MENU_Display, MENU_Display_Init, MENU_Display_Run};
 
 const menu_t menuRelTest  ={str_MENU_RelTest, MENU_RelTest_Init, MENU_RelTest_Run};
+
 const menu_t menuCal      ={str_MENU_Cal, MENU_CalPWR_Init, MENU_CalPWR_Run};
+
+const menu_t menuDebug = {str_MENU_Debug, MENU_Debug_Init, MENU_Debug_Run};
 
 
 #define MENU_SUBTOP_ITEMS    6
 const menu_t* ptrSubTopMenu[MENU_SUBTOP_ITEMS] = { &menuBypass, &menuLoad, &menuSave, &menuReset, &menuSubSetup, &menuAbout};
 
-#define MENU_SUBSETUP_ITEMS    5
-const menu_t* ptrSubSetupMenu[MENU_SUBSETUP_ITEMS] = { &menuTParam, &menuSleep, &menuCal, &menuDisplay, &menuRelTest };
+#define MENU_SUBSETUP_ITEMS    6
+const menu_t* ptrSubSetupMenu[MENU_SUBSETUP_ITEMS] = { &menuTParam, &menuSleep, &menuCal, &menuDisplay, &menuRelTest, &menuDebug };
 const menu_t menuTune     ={NULL, MENU_Tune_Init, MENU_Tune_Run};
 const menu_t menuNameEdit ={NULL, MENU_NameEdit_Init, MENU_NameEdit_Run};
 const menu_t menuStartupSave ={NULL, MENU_StartupSave_Init, MENU_StartupSave_Run};
@@ -267,13 +283,27 @@ static void MENU_Main_Update(void)
   } 
   else
   {
-    DISP_Str(0, c_row,str_C_, 0);
-    UTILI_GetCapValueStr(str, sizeof (str));
-    DISP_Str(2, c_row, str, 0);
+    if (global.flags & FLAG_DEBUG_MASK)
+    {
+      UTILI_Int2Str(global.adc_f_mV, str, sizeof(str));
+      DISP_Str(0, c_row, "FWD=", 0); // display ADC on capacitor row
+      DISP_Str(4, c_row, str, 0);
 
-    DISP_Str(0, l_row,str_L_, 0);
-    UTILI_GetIndValueStr(str, sizeof (str));
-    DISP_Str(2, l_row, str, 0);
+      UTILI_Int2Str(global.adc_r_mV, str, sizeof(str));
+      DISP_Str(0, l_row, "REV=", 0); // display ADC on inductor row
+      DISP_Str(4, l_row, str, 0);
+
+    }
+    else
+    {
+      DISP_Str(0, c_row, str_C_, 0); // display capacitance on capacitor row
+      UTILI_GetCapValueStr(str, sizeof(str));
+      DISP_Str(2, c_row, str, 0);
+
+      DISP_Str(0, l_row, str_L_, 0); // display inductance on inductance row
+      UTILI_GetIndValueStr(str, sizeof(str));
+      DISP_Str(2, l_row, str, 0);
+    }
   }
   
   //Display AUTO 
@@ -285,17 +315,6 @@ static void MENU_Main_Update(void)
      DISP_Char(9, i, p_str[i], 0);
     }
   }
-  
-  
-  
- 
-
-//  UTILI_Int2Str(global.adc_f_mV, str, sizeof (str));
-//  DISP_Str(5, 2, str, 0);
-//
-//  UTILI_Int2Str(global.adc_r_mV, str, sizeof (str));
-//  DISP_Str(5, 3, str, 0);
-
 
 }
 
@@ -700,7 +719,8 @@ static void MENU_Sleep_Run(void)
     }
 
     
-    if (MENU_var.tparam.cursor == 2) //cursor at "Save"
+//    if (MENU_var.tparam.cursor == 2) //cursor at "Save"
+    if (MENU_var.sleep.cursor == 2) //cursor at "Save"
     {
       global.sleep_delay_sec = MENU_var.sleep.delay_sec;
       global.sleep_enable = MENU_var.sleep.enable;
@@ -710,7 +730,8 @@ static void MENU_Sleep_Run(void)
       return;
     }
     
-    if (MENU_var.tparam.cursor == 3) //cursor at "Esc"
+//    if (MENU_var.tparam.cursor == 3) //cursor at "Esc"
+    if (MENU_var.sleep.cursor == 3) //cursor at "Esc"
     {
       MENU_Init();
       return;
@@ -805,6 +826,102 @@ static void MENU_Display_Run(void)
         if (MENU_var.display.cursor == 2)
         {
             MENU_Init();
+        }
+    }
+}
+
+
+//-- Menu Debug  --------------------------------------------------------------------------------------------------
+
+static void MENU_Debug_Update(void)
+{
+    if (MENU_var.debug.enable)
+    {
+        DISP_Str(0, 0, str_On,
+                 MENU_var.debug.cursor == 0);
+    }
+    else
+    {
+        DISP_Str(0, 0, str_Off,
+                 MENU_var.debug.cursor == 0);
+    }
+
+    DISP_Str(0, 3, str_Save,
+             MENU_var.debug.cursor == 1);
+
+    DISP_Str(7, 3, str_Esc,
+             MENU_var.debug.cursor == 2);
+}
+
+
+static void MENU_Debug_Init(void)
+{
+    DISP_Clr();
+    BUTTON_Reset();
+
+    MENU_var.debug.cursor = 0;
+
+    MENU_var.debug.enable =
+        (global.flags & FLAG_DEBUG_MASK) != 0;
+
+//    DISP_Str(0, 0, "Debug", 0);
+
+    MENU_Debug_Update();
+}
+
+
+static void MENU_Debug_Run(void)
+{
+    if (BUTTON_count == BUTTON_RELEASED)
+    {
+        MENU_var.debug.cursor++;
+
+        if (MENU_var.debug.cursor > 2)
+        {
+            MENU_var.debug.cursor = 0;
+        }
+
+        MENU_Debug_Update();
+    }
+
+    if (BUTTON_count == BUTTON_LONG_PRESSED)
+    {
+        BUTTON_count -= BUTTON_LONG_REPEAT_DELAY_MAX;
+
+        // Cursor at Debug On/Off
+        if (MENU_var.debug.cursor == 0)
+        {
+            MENU_var.debug.enable =
+                !MENU_var.debug.enable;
+
+            MENU_Debug_Update();
+        }
+
+        // Cursor at Save
+        if (MENU_var.debug.cursor == 1)
+        {
+            if (MENU_var.debug.enable)
+            {
+                global.flags |= FLAG_DEBUG_MASK;
+            }
+            else
+            {
+                global.flags &= ~FLAG_DEBUG_MASK;
+            }
+
+            EEPROM_Write((uint8_t)&ee_flags,
+                         &global.flags,
+                         sizeof(global.flags));
+
+            MENU_Init();
+            return;
+        }
+
+        // Cursor at Esc
+        if (MENU_var.debug.cursor == 2)
+        {
+            MENU_Init();
+            return;
         }
     }
 }
@@ -1466,9 +1583,6 @@ static void MENU_NameEdit_Update(void)
   }
   
  
- 
-  
-  
   
    DISP_Str(0,3,str_Save, (MENU_var.nameedit.cursor == TUNEMEM_STRLEN) );
    DISP_Str(7,3,str_Esc, (MENU_var.nameedit.cursor == TUNEMEM_STRLEN+1));
