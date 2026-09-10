@@ -13,6 +13,9 @@
  * Modified 09-Sep-2026 2E0UMK
  * Added boolean flags for EEPROM storage of settings such as screen rotation.
  * 
+ * Modified 10-Sep-2026 2E0UMK
+ * Added debug flag and specified size of crystal freq.
+ * 
  */
 
 #ifndef DEFINES_H
@@ -41,9 +44,8 @@ extern "C"
 #define DISPLAY_I2C_ADDR    0x78  
 #define DISPLAY_INIT_DELAY  500  //ms
 
-//#define DISPLAY_ROTATE      TRUE // Some variants need teh display rotated. This may become a menu item.
-  
-#define _XTAL_FREQ 16000000
+//#define _XTAL_FREQ 16000000
+#define _XTAL_FREQ 16000000UL
 
 //  the CPU clock is 4 Mhz, so to convert to microseconds, there are
 //  4 clocks per usec
@@ -148,16 +150,17 @@ extern "C"
 //---- Boolean Flags ----------------------------------------------------    
 
 #define FLAG_DISPLAY_ROTATE    0 // bit position (not mask))
-#define FLAG_FOO               1
-#define FLAG_2                 2
+#define FLAG_DEBUG             1
+#define FLAG_FOO               2
 #define FLAG_3                 3
 #define FLAG_4                 4
 #define FLAG_5                 5
 #define FLAG_6                 6
 #define FLAG_7                 7
 
-#define FLAG_DISPLAY_ROTATE_MASK    (1 << FLAG_DISPLAY_ROTATE)
-//#define FLAG_FOO_ROTATE_MASK    (1 << FLAG_FOO_ROTATE)
+#define FLAG_DISPLAY_ROTATE_MASK  (1 << FLAG_DISPLAY_ROTATE)
+#define FLAG_DEBUG_MASK           (1 << FLAG_DEBUG)
+//#define FLAG_FOO_ROTATE_MASK      (1 << FLAG_FOO_ROTATE)
 
 //----------------------------------------------------------------------    
 
@@ -295,6 +298,7 @@ const char str_Start[]   =  "Start";
 const char str_Stop[]   =  "Stop";
 const char str_Save[]   = "Save";
 
+const char str_MENU_Debug[] = "Debug     ";
 
 const char str_MENU_Reset[]         =  "Reset     ";
 const char str_MENU_Bypass[]        =  "Bypass    ";
