@@ -6,12 +6,15 @@
  * Modified 09-Sep-2026 2E0UMK
  * Added display rotate on init.
  *
+ * Modified 10-Sep-2026 2E0UMK
+ * Changed to Int Osc and disabled redundant clock settings.
+ * 
  */
 
 // PIC16F1938 Configuration Bit Settings
 
 // CONFIG1
-#pragma config FOSC = ECH       // Oscillator Selection (ECH, External Clock, High Power Mode (4-32 MHz): device clock supplied to CLKIN pin)
+#pragma config FOSC = INTOSC    // Internal OSC
 #pragma config WDTE = ON        // Watchdog Timer Enable (WDT enabled)
 #pragma config PWRTE = OFF      // Power-up Timer Enable (PWRT disabled)
 #pragma config MCLRE = ON       // MCLR Pin Function Select (MCLR/VPP pin function is MCLR)
@@ -19,8 +22,8 @@
 #pragma config CPD = OFF        // Data Memory Code Protection (Data memory code protection is disabled)
 #pragma config BOREN = ON       // Brown-out Reset Enable (Brown-out Reset enabled)
 #pragma config CLKOUTEN = OFF   // Clock Out Enable (CLKOUT function is disabled. I/O or oscillator function on the CLKOUT pin)
-#pragma config IESO = ON        // Internal/External Switchover (Internal/External Switchover mode is enabled)
-#pragma config FCMEN = ON       // Fail-Safe Clock Monitor Enable (Fail-Safe Clock Monitor is enabled)
+#pragma config IESO = OFF       // Internal/External Switchover (Internal/External Switchover mode is disabled)
+#pragma config FCMEN = OFF      // Fail-Safe Clock Monitor is uneccessary
 
 // CONFIG2
 #pragma config WRT = OFF        // Flash Memory Self-Write Protection (Write protection off)
@@ -51,10 +54,7 @@ void MAIN_Init(void)
   LATB = 0;
   LATC = 0;
 
-  
-  
-  
-   
+     
  //Timer 2
  //set to 1ms = 1000Hz
  //Fosc/4 = 4Mhz, Prescaler 1:16, Comp value 250,  Postscaler 1:1
@@ -69,7 +69,6 @@ void MAIN_Init(void)
  T2CONbits.TMR2ON = 1;  //Timer on
  INTCONbits.GIE = 1; // Enable Global Interrupt
   
- 
  
  
 // Set watchdog  
@@ -87,8 +86,7 @@ void MAIN_Init(void)
   CM1CON0bits.C1ON = 0; // Disable comparators
   CM2CON0bits.C2ON = 0;
 
-
-  
+ 
   
 //  //  If we are using the auto button for an output for uart
 //  //  set B1 (auto) to an output
@@ -125,22 +123,16 @@ void MAIN_Init(void)
   global.cap_relays =0;
   global.cap_sw =0;
 
-
   global.tune_stop_swr = 100; // SWR 1.10
   
-
   //Global Enable of Weak PullUp
   OPTION_REGbits.nWPUEN = 0;
- 
 
   
 //  WPUBbits.WPUB1 = 1; // PORTB1 Pull-up resistor
 //  WPUBbits.WPUB2 = 1; // PORTB2 Pull-up resistor
   
-  
-
-
-  
+ 
 }
 
 
