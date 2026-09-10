@@ -1,12 +1,13 @@
 # Antenna tuner - ATU-100 EXT - Yet Another Firmware
 A tweaked version of DG4SN's version of N7DCC's project.
 
-I share all of DG4SN's given motivations for this project: particularly the ability to use an environment I undestand. I use the tuner QRP with quite an elderly RT, and I wanted to be able to switch on and off auto-tune without adding an exta button. Unfortunately, Sven has [stopped developing the firmware](https://github.com/DG4SN/ATU-100-EXT-YAF/issues/2#issuecomment-2628881203). What better opportunity for a play? There are a couple of places I felt it could use some improvement:
-- My device is evidently slightly different, since when I flashed the DG4SN code, my display was upside-down.
+I share all of DG4SN's given motivations for this project: particularly the ability to use an environment I understand. QRP has only a very loose definition, but I don't use power quite as low as Sven's. I use the tuner in the 10W to 50W bracket. Initially my core desire was to be able to switch on and off auto-tune without adding an exta button. Unfortunately, Sven has [stopped developing the firmware](https://github.com/DG4SN/ATU-100-EXT-YAF/issues/2#issuecomment-2628881203). What better opportunity for a play? There are a couple of places I felt it could use some improvement:
+
+- My device is evidently slightly different, since when I flashed the DG4SN code, my display was upside-down. A menu item has been added to correct this.
 - The auto cal wasn't working. Looking at the code, I believe that once the threshold is passed, that value is used as the calibration value, if it's stable. The definition of "stable" is that it's been the same for two sucessive iterations. This is thought to be insufficient. 
 - I would like a power meter rather than just a flickery number.
 
-I'm sure they would have fixed the first two, in fact another ham modified the screen rotation, but I wanted to have a go at this myself, and what's the point in having it in my preferred environment, if I don't play?! Ultimately, I'll add a menu item to rotate, and I'll have a play with a power meter and maybe a rolling history of power or something fancy later.
+Once I get the cal to work for higher forward power, I'll have a play with a power meter and maybe a rolling history of power or something fancy later.
 
 In the meantime, here's a photo of my internals. I've seen at least three variations on how to istall this board. Note that I had to add the /MCLR pin. In order to flash I must disconnect the display. No big deal.
 
@@ -15,13 +16,14 @@ In the meantime, here's a photo of my internals. I've seen at least three variat
 ---
 
 Tweaks by 2E0UMK as follows:
-- Display is rotated 180 degrees.
+- Added a setup menu option to rotate the display.
 
 To do:
-- Add a setup menu option to rotate the display.
-- Add an alternative calibration means, where the button is used to sample the output power rather than thresholding the ADC.
-- ...or a short delay after thresholding the ADC before actually taking the calibration sample.
+- Fix the calibration so it works for higher power. Perhaps add fixed calibrations for certain max power level options, and leave the calibration as an advanced option.
 - Add power / SWR gauges, which would be much more useful than flickery numbers.
+- Add a screen saver, or a screen off timer. My OLED after 1 years is already affected by burn-in.
+- Increase display font size of SWR and Power. Perhaps removing L and C displays.
+- Option to scan first through the saved tunings before running a full tuning cycle. If we fnid a SWR lwess than (e.g. 1.4) just use that.
 
 ---
 Environment: 
