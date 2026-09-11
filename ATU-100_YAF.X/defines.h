@@ -2,7 +2,7 @@
  * File:   defines.h
  * Author: DG4SN
  *
- * Created on 22. MÃ¤rz 2022, 15:59
+ * Created on 22 March 2022, 15:59
  * 
  * Modified 23-June-2025 2E0UMK
  * Rotated the display. 
@@ -15,6 +15,9 @@
  * 
  * Modified 10-Sep-2026 2E0UMK
  * Added debug flag and specified size of crystal freq.
+ * 
+ * Modified 11-Sep-2026 2E0UMK
+ * Added comments describing the reverse-engineered cal variables.
  * 
  */
 
@@ -195,9 +198,6 @@ typedef struct
   
   
 
-
-  
-
 const    int16_t CAP_VALUES[7] = {10, 22, 47, 100, 220, 470, 1000}; //Cap in pF
 const    int16_t IND_VALUES[7] = {50, 100, 220, 450, 1000, 2200, 4400}; //Ind in nH
   
@@ -218,9 +218,9 @@ const    int16_t IND_VALUES[7] = {50, 100, 220, 450, 1000, 2200, 4400}; //Ind in
     uint8_t bypass_enable;
     uint16_t bypass_save_relais;
     
-    int16_t cal_point[2];
-    int16_t cal_offset;
-    int16_t cal_gain;
+    int16_t cal_point[2]; // Holds the raw ADC samples corresponding to two known forward power references.
+    int16_t cal_offset; // Sets the baseline noise floor in ADC counts or millivolts.
+    int16_t cal_gain; // Global linear scaling factor to compensate for coupler transformer winding ratios (e.g., 1:10 turns) and diode attenuators.
     int16_t adc_r_mV;
     int16_t adc_f_mV;
     uint8_t cap_sw;
@@ -249,7 +249,7 @@ global_t extern global;
 
 const char str_ATU100EXT[] = "ATU-100";
 const char str_YAF[]       = "EXT-YAF";
-const char str_Version[]   =  "V0.68.2"; // 2E0UMK
+const char str_Version[]   =  "V0.68.3"; // 2E0UMK
 const char str_YetAnother[] = "YetAnother";
 const char str_Firmware[] = "Firmware";
 const char str_Hardware[] = "Hardware";
