@@ -1,0 +1,15 @@
+
+Specification Overview
+By separating Screen Saving from Relay Power Saving, the tuner accommodates both desktop/shack use (where maintaining an active match is paramount) and field/battery operation (where coil current draw must be eliminated).
+Proposed EEPROM Flags & Menu ItemsBoth settings reside in the EEPROM Flags structure and appear as independent toggles in the setup menu: Relay_Save_Enable (OFF / ON)Default: OFFAction when triggered: Calls UTILI_Set_LC_Relays(0) to drop all coil voltage after the "n" second timeout.
+Safety Guard: Subject to the calibration power check (detailed below).
+Screen_Save_Enable (OFF / ON)Default: ONAction when triggered: Clears the OLED frame buffer and runs the 1-pixel Larson scanner animation across the display. (Does not print static text like "Sleeping").
+Trigger & Reset LogicTrigger Condition: Both enabled saving routines execute simultaneously when idle_timer reaches "n" seconds (configured by the existing sleep time menu option) following the drop of forward RF power.
+Reset Condition: Any detection of forward RF power above the noise threshold OR a short press of the front-panel button immediately cancels both saving states, restores the active relay configuration (if relay saving was active), and redraws the standard PWR/SWR display.Discussion: Safety Threshold for Relay Power Saving (10W Limit)
+Implementing a safety lock on Relay_Save_Enable based on calibrated operating power is a very sound engineering safeguard. Why a Safety Lock is NeededIf an operator uses Relay Power Saving while running high power (e.g., $50\text{W}\text{--}100\text{W}$):RF drops, the $n$-second timer expires, and the relays drop to $0$ (Bypass).The operator keys up again at $50\text{W}$.For a few milliseconds before the PIC detects RF and reinstates the relays, the transmitter dumps $50\text{W}$ into an unmatched load.
+More critically, as the PIC energizes the relays to restore the tuned state, the relay contacts close under full $50\text{W}$ RF load (hot-switching), leading to arcing and welded contacts.Why 10W is the Right ThresholdQRP Safe Zone ($\le 10\text{W}$): Miniature signal relays (like HFD4/G5V) can generally survive occasional low-power hot-switching at $1\text{W}\text{--}5\text{W}$ without immediate contact destruction. At QRP levels, saving $100\text{mA}+$ of coil current on battery power outweighs the minimal contact stress.
+QRO Risk Zone ($> 10\text{W}$): At $15\text{W}\text{--}100\text{W}$, the peak RF voltages across opening or closing contacts will arc.How the Threshold Should Be CheckedUsing the upper calibration point (cal_point[1]) as the reference:If cal_point[1] corresponds to an calibrated power reference $> 10\text{W}$, the menu logic locks Relay_Save_Enable to OFF (or displays N/A / LOCKED when the user tries to toggle it).
+This guarantees that any unit calibrated for standard $10\text{W}\text{--}100\text{W}$ operation cannot accidentally burn its relay contacts through idle power-saving drops.
+
+Why Larson Lights.
+
