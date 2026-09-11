@@ -13,3 +13,12 @@ This guarantees that any unit calibrated for standard $10\text{W}\text{--}100\te
 
 Why Larson Lights.
 
+If Screen Saver is active AND Button is pressed:
+
+ALWAYS WAKE: Clear screen saver, restore OLED display, reset idle timer.
+
+If Screen Saver is active AND Forward RF is detected:
+
+If Wake_On_RF == ON: Clear screen saver, restore OLED display, reset idle timer.
+
+If Wake_On_RF == OFF: Do nothing. The PIC continues to monitor forward/reflected power and calculate SWR in the background, but the OLED remains in Larson scanner mode to prevent pixel wear.
