@@ -19,8 +19,13 @@
  * previous attempt at this.
  * 
  * Fixed a buglet in the use of MENU_var.tparam.cursor which should have been
- * MENU_var.sleep.cursor .
+ * MENU_var.sleep.cursor . Not sure if this was correct...
  *
+ * Modified 11-Sep-2026 2E0UMK
+ * Tried to undo the mess I made attempting to debug the calibration routine.
+ * Added a few comments as reverse engineering becomes clearer.
+ * Modified and tested some cal point debug code. (Converted back to comments.)
+ * 
  */
 
 #include "defines.h"
@@ -30,13 +35,13 @@
 #define MENU_SUB_TIMEOUT   500 // x 10ms
 
 #define UPDATE_PERIODE       10 // x 10ms
-#define TUNE_UPDATE_PERIODE       50 // x 10ms
+#define TUNE_UPDATE_PERIODE  50 // x 10ms
 
-#define CAL_STEP0_MAX   100  //  x 0.1W = 10W
+#define CAL_STEP0_MAX    100 //  x 0.1W = 10W
 #define CAL_STEP1_MAX   1000 //  x 0.1W = 100W
 
-#define ADC_CAL_START   100 //mV
-#define ADC_CAL_STOP      5 //mV
+#define ADC_CAL_START   100 // mV threshold for starting cal value (appx 1W)
+#define ADC_CAL_STOP      5 // mV threshold for end of cal (appx 0.05W) 
 
 #define TUNE_AUTO_MIN_SWR   120 
 #define TUNE_AUTO_MAX_SWR   200
@@ -457,8 +462,8 @@ static void MENU_Reset_Init(void)
 static void MENU_Bypass_Init(void)
 {
   global.bypass_enable = TRUE;
-  global.bypass_save_relais = UTILI_Get_LC_Relays(); //Save current relais
-  UTILI_Set_LC_Relays(0); //reset relais
+  global.bypass_save_relais = UTILI_Get_LC_Relays(); //Save current relays
+  UTILI_Set_LC_Relays(0); //reset relays
   MENU_Init();
 }
 
@@ -761,7 +766,8 @@ static void MENU_Display_Update(void)
 
     DISP_Str(7, 3, str_Esc,
              MENU_var.display.cursor == 2);
-}
+} // static void MENU_Sleep_Run()
+
 
 static void MENU_Display_Init(void)
 {
@@ -924,7 +930,7 @@ static void MENU_Debug_Run(void)
             return;
         }
     }
-}
+} // static void MENU_Debug_Run()
 
 //-- Menu_RelTest  --------------------------------------------------------------------------------------------------
 
@@ -1062,8 +1068,8 @@ static void MENU_RelTest_Run(void)
     }
   
     UTILI_SetRelays();
-  }
-  
+  } // static void MENU_RelTest_Run()
+ 
   
     //- Buttons Auto and Bypass for fine tuning
     
@@ -1147,6 +1153,8 @@ static void MENU_CalPWR_Init(void)
 
 static void MENU_CalPWR_Run(void)
 {
+  char str[7];
+
   if (BUTTON_count == BUTTON_RELEASED)
   {
     MENU_var.cal.cursor = MENU_var.cal.cursor ^ 0x01; // value 0 or 1
@@ -1163,8 +1171,8 @@ static void MENU_CalPWR_Run(void)
     {
       int16_t value = MENU_var.cal.cal_point[MENU_var.cal.step];
 
-      if (value < 100) value += 5;
-      else value += 50;
+      if (value < 100) value += 5; // 0.5W increments below 10W
+      else value += 50;            // otherwise 5W increments
 
       if (MENU_var.cal.step == 0)
       {
@@ -1172,7 +1180,7 @@ static void MENU_CalPWR_Run(void)
       } 
       else
       {
-        //Value in step 1 could not be smaller than in step 0
+        // Value in step 1 could not be smaller than in step 0
         if (value > CAL_STEP1_MAX) value = MENU_var.cal.cal_point[0];
       }
 
@@ -1193,8 +1201,6 @@ static void MENU_CalPWR_Run(void)
   {
     if (global.adc_f_mV > ADC_CAL_START)
     {
-      __delay_ms(250); // 250ms block seems to allow time for Tx power to ramp
-      ADC_Run(); // resample        
       if (global.adc_f_mV == MENU_var.cal.adc_value_old) //stable value current == old
       {
         MENU_var.cal.adc_value[MENU_var.cal.step] = global.adc_f_mV; //save 
@@ -1203,6 +1209,7 @@ static void MENU_CalPWR_Run(void)
         DISP_Str(DISP_COL_CENTER, 1, str_Ok, 0);
         MENU_var.cal.step += 2; //steps 0->2 & 1->3
       }
+      __delay_ms(100); // allow a bit of time for stability
     }
   } 
   else //step 2 & 3
@@ -1222,38 +1229,34 @@ static void MENU_CalPWR_Run(void)
         global.cal_point[0] = MENU_var.cal.cal_point[0];
         global.cal_point[1] = MENU_var.cal.cal_point[1];
 
-        //        char str[8];         
-        //        UART_WriteStr("Point 0: ");
-        //        UTILI_Int2Str(global.cal_point[0],str,sizeof(str));
-        //        UART_WriteStrLn(str);        
+//        UTILI_Int2Str(global.cal_point[0], str, sizeof(str));
+//        DISP_Str(0, 0, "P0:", 0);
+//        DISP_Str(3, 0, str, 0);
 
-        //        UART_WriteStr("Point 1: ");
-        //        UTILI_Int2Str(global.cal_point[1],str,sizeof(str));
-        //        UART_WriteStrLn(str); 
+//        UTILI_Int2Str(global.cal_point[1], str, sizeof(str));
+//        DISP_Str(0, 1, "P1:", 0);
+//        DISP_Str(3, 1, str, 0);
 
         int16_t y1 = UTILI_deciWatt_to_centiVolt(global.cal_point[0]);  
         int16_t y2 = UTILI_deciWatt_to_centiVolt(global.cal_point[1]);
 
-        //        UART_WriteStr("Point V 0: ");
-        //        UTILI_Int2Str(y1,str,sizeof(str));
-        //        UART_WriteStrLn(str);        
-
-        //        UART_WriteStr("Point V 1: ");
-        //        UTILI_Int2Str(y2,str,sizeof(str));
-        //        UART_WriteStrLn(str); 
-
+//      deleted historic code for Y1, y2 display.
+        
         global.cal_gain = (int16_t) (((y2 - y1) * (int32_t) CAL_GAIN_MULTIPLIER) / (MENU_var.cal.adc_value[1] - MENU_var.cal.adc_value[0]));
-
-        //        UART_WriteStr("Gain: ");
-        //        UTILI_Int2Str(global.cal_gain,str,sizeof(str));
-        //        UART_WriteStrLn(str); 
 
         global.cal_offset = y1 - (int16_t) (((int32_t) global.cal_gain * MENU_var.cal.adc_value[0]) / CAL_GAIN_MULTIPLIER);
 
-        //        UART_WriteStr("Offset: ");
-        //        UTILI_Int2Str(global.cal_offset,str,sizeof(str));
-        //        UART_WriteStrLn(str); 
+//        UTILI_Int2Str(global.cal_gain, str, sizeof(str));
+//        DISP_Str(0, 2, "G:", 0);
+//        DISP_Str(2, 2, str, 0); // showed 4096
 
+//        UTILI_Int2Str(global.cal_offset, str, sizeof(str));
+//        DISP_Str(0, 3, "O:", 0);
+//        DISP_Str(2, 3, str, 0); // showed 1223
+
+        __delay_ms(2000); // let's read it
+        
+        
         //Save new cal values to eeprom
         EEPROM_Write((uint8_t)&ee_cal_point_0, &global.cal_point[0], sizeof (ee_cal_point_0));
         EEPROM_Write((uint8_t)&ee_cal_point_1, &global.cal_point[1], sizeof (ee_cal_point_1));
@@ -1268,10 +1271,7 @@ static void MENU_CalPWR_Run(void)
 
   MENU_var.cal.adc_value_old = global.adc_f_mV;
 
-
-
-}
-
+} // static void MENU_CalPWR_Run()
 
 
 
