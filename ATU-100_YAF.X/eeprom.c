@@ -8,6 +8,10 @@
  * Modified 09-Sep-2026 2E0UMK
  * Added flag to store display rotation (among other things).
  *
+ * Modified 11-Sep-2026 2E0UMK
+ * EEPROM write now waits for completion of write before writing next byte.
+ * Also modified prototype to remove casting warnings.
+ * 
  */
 
 #include "defines.h"
@@ -38,17 +42,23 @@ void EEPROM_Init(void)
   
 }
 
-
-void EEPROM_Write(uint8_t addr, void *ptrValue, uint8_t size)
+void EEPROM_Write(uint16_t addr, void *ptrValue, uint8_t size)
+// void EEPROM_Write(uint8_t addr, void *ptrValue, uint8_t size)
 {
-  uint8_t *ptr = ptrValue;
-    while(size >0)
+    uint8_t *ptr = (uint8_t *)ptrValue;
+    while(size > 0)
     {
-        eeprom_write(addr, *ptr);
+        while(EECON1bits.WR); // ensure hardware idle before initiating write
+        
+        eeprom_write(addr, *ptr); // write the single byte
+        
+        // increment pointers and counters
         size--;
         addr++;
         ptr++;
     }
+    
+    while(EECON1bits.WR); // wait for final byte to complete before returning
 }
 
 
