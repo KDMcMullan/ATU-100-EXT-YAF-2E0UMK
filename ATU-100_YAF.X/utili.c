@@ -1,5 +1,15 @@
 /**
+ * ATU-100_EXT_YAF 
+ * Yet Another Firmware
+ * (presumably) by DG4SN, Sven
+ *
  * Utili software parts
+ * (Presumably) created around March 2022
+ * 
+ * Modified 12-Sep-2026 2E0UMK
+ * Explicitly cast the value into *p in UTILI_Int2Str() and also the implicit
+ * I16 "10" in order to silence a warning.
+ * 
  */
 
 
@@ -109,7 +119,8 @@ void UTILI_Int2Str(int16_t number, char *output, uint8_t size)
     p--;
     if (number > 0)
     {
-      *p = '0' + (number % 10);
+//      *p = '0' + (number % 10);
+      *p = (uint8_t)('0' + (number % 10U));
       number /= 10;
     } else
     {
@@ -162,7 +173,7 @@ int16_t UTILI_deciWatt_to_centiVolt(int16_t deciWatt)
 
 /**
  * Calculate the power fron the voltage on 50ohms
- * P = U² / 50 ohm
+ * P = UÂ² / 50 ohm
  * deziWatt = ((centiVolt/100) x (centiVolt/100) / 50ohm) * 10
  * deziWatt = ((centiVolt x centiVolt) / (10000 x 50)) * 10
  * deziWatt = (centiVolt x centiVolt) / 50000
