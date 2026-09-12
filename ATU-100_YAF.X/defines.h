@@ -1,8 +1,10 @@
-/* 
- * File:   defines.h
+/*
+ * ATU-100_EXT_YAF 
+ * Yet Another Firmware
  * Author: DG4SN
  *
- * Created on 22 March 2022, 15:59
+ * File:   defines.h
+ * Created on 22 March 2022
  * 
  * Modified 23-June-2025 2E0UMK
  * Rotated the display. 
@@ -18,6 +20,11 @@
  * 
  * Modified 11-Sep-2026 2E0UMK
  * Added comments describing the reverse-engineered cal variables.
+ * 
+ * Modified 12-Sep-2026 2E0UMK
+ * Added extra bits (and removed bits) for the new sleep delay routines.
+ * Added ccomments describing the reverse-engineered cal variables.
+ * Added a 2us delay macro to speed up display refresh.
  * 
  */
 
@@ -55,6 +62,10 @@ extern "C"
 
 #define DELAY_5_US_CLOCKS 20
 #define DELAY_5_us() _delay((unsigned long)(DELAY_5_US_CLOCKS))
+
+#define DELAY_2_US_CLOCKS  8
+#define DELAY_2_us() _delay((unsigned long)(DELAY_2_US_CLOCKS))
+
 //#define DELAY_100_US_CLOCKS 400
 //#define DELAY_100_us() _delay((unsigned long)(DELAY_100_US_CLOCKS))  
 
@@ -152,18 +163,22 @@ extern "C"
  
 //---- Boolean Flags ----------------------------------------------------    
 
-#define FLAG_DISPLAY_ROTATE    0 // bit position (not mask))
-#define FLAG_DEBUG             1
-#define FLAG_FOO               2
-#define FLAG_3                 3
-#define FLAG_4                 4
+// these are bit positions (not masks)
+#define FLAG_DISPLAY_ROTATE    0 // rotate display
+#define FLAG_DEBUG             1 // show debug info
+#define FLAG_WAKE_ON_RF        2 // 1 = Wake on RF, 0 = Button only (DigiMode)
+#define FLAG_RELAY_SAVE        3 // 1 = Drop relays on sleep (QRP only), 0 = Keep match
+#define FLAG_4                 4 // formery the screen saver enabled bit
 #define FLAG_5                 5
 #define FLAG_6                 6
 #define FLAG_7                 7
 
 #define FLAG_DISPLAY_ROTATE_MASK  (1 << FLAG_DISPLAY_ROTATE)
 #define FLAG_DEBUG_MASK           (1 << FLAG_DEBUG)
-//#define FLAG_FOO_ROTATE_MASK      (1 << FLAG_FOO_ROTATE)
+#define FLAG_WAKE_ON_RF_MASK      (1 << FLAG_WAKE_ON_RF)
+#define FLAG_RELAY_SAVE_MASK      (1 << FLAG_RELAY_SAVE)
+//#define FLAG_4_MASK               (1 << FLAG_4)
+
 
 //----------------------------------------------------------------------    
 
@@ -227,8 +242,8 @@ const    int16_t IND_VALUES[7] = {50, 100, 220, 450, 1000, 2200, 4400}; //Ind in
     uint8_t cap_relays;
     uint8_t ind_relays;
 
-    uint8_t flags; // bit 0 is screen rotation, bits 7 to 1 are reserved
-    
+    uint8_t flags; // various Booleans
+       
   } global_t;
   
  
@@ -249,7 +264,7 @@ global_t extern global;
 
 const char str_ATU100EXT[] = "ATU-100";
 const char str_YAF[]       = "EXT-YAF";
-const char str_Version[]   =  "V0.68.3"; // 2E0UMK
+const char str_Version[]   =  "V0.69.0"; // 2E0UMK
 const char str_YetAnother[] = "YetAnother";
 const char str_Firmware[] = "Firmware";
 const char str_Hardware[] = "Hardware";
@@ -276,18 +291,20 @@ const char str_Esc[] = "Esc";
 
 const char str_Off[] = "Off";
 const char str_On[] = " On";
-const char str_Ok[] = "Ok";
+const char str_OK[] = "OK";
 
 const char str_AUTO[]  = "AUTO";
 const char str_Power[] = "Power";
 const char str_Point[] = "Point";
 
 const char str_Bypass[] = " Bypass ";
-    
+
 //const char str_Sec[] = "Sec";
-const char str_Delay[] = "Delay";
-const char str_Sleep[] = "Sleep";
-const char str_sleeping[] ="sleeping";
+//const char str_sleeping[] ="sleeping";
+const char str_Delay[]  = "Delay";
+const char str_Sleep[]  = "Sleep";     // Sleep delay time
+const char str_RFwake[]  = "RFwake";   // Wake on RF
+const char str_RlySave[] = "RlySave";  // Relay save toggle
 
 const char str_MENU_Display[] = "Display   ";
 const char str_Normal[] = "Normal";
@@ -313,7 +330,7 @@ const char str_MENU_About[]         =  "About     ";
   
 
 const char str_SpaceLine[] = "          ";
-const char str_WaitForHF[] = "wait f. HF"; // something like "Tx Wait" might be better, but leave it as this needs rework
+const char str_WaitForHF[] = "Await Tx"; // I never liked "wait f. HF"
 const char str_Running[]   = " Running  "; 
 const char str_Break[]     = "  Break   ";
 const char str_PWR_low[]   = " PWR low  ";
