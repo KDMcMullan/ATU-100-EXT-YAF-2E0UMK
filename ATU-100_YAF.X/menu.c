@@ -1,9 +1,11 @@
 /* 
- * File:   menu.c
+ * ATU-100_EXT_YAF 
+ * Yet Another Firmware
  * Author: DG4SN
  *
- * Created March 2022
- * 
+ * File:   menu.c
+ * Created on 22 March 2022
+ *
  * Modified 23-June-2025 2E0UMK
  * Rotated the display. 
  *
@@ -17,7 +19,6 @@
  * Modified 10-Sep-2026 2E0UMK
  * Added debug display selection. Tidied up the code comments around a
  * previous attempt at this.
- * 
  * Fixed a buglet in the use of MENU_var.tparam.cursor which should have been
  * MENU_var.sleep.cursor . Not sure if this was correct...
  *
@@ -25,10 +26,21 @@
  * Tried to undo the mess I made attempting to debug the calibration routine.
  * Added a few comments as reverse engineering becomes clearer.
  * Modified and tested some cal point debug code. (Converted back to comments.)
+ * Tweaked sleep delay times and set-rates.
+ *
+ * Modified 12-Sep-2026 2E0UMK
+ * Complete rework of the sleep mode.
+ * Changed how power saving by depowering relays works (now doesn't depower
+ * unless in QRP mode).
+ * Added an OLED screen saver. It's not decorative: it's in there to actually
+ * save the screen from burn-in.
+ * Explicitly cast (16 bit) TUNE_state into (8 bit) state to silence a
+ * warning.
  * 
  */
 
 #include "defines.h"
+#include "disp.h"
 
 #define MENU_MEMORY_TIMEOUT   500 // x 10ms
 
@@ -49,10 +61,10 @@
 #define TUNE_STOP_MIN_SWR   100 
 #define TUNE_STOP_MAX_SWR   150
 
-#define SLEEP_DELAY_MAX       300
-#define SLEEP_DELAY_STEP_SLOW   5
-#define SLEEP_DELAY_STEP_FAST  15
-#define SLEEP_DELAY_FAST_HIGHER  100
+#define SLEEP_DELAY_MAX         180 // was 300 (5 mins)
+#define SLEEP_DELAY_STEP_SLOW     5
+#define SLEEP_DELAY_STEP_FAST    15
+#define SLEEP_DELAY_FAST_HIGHER  60 // was 100
 
 typedef struct
 {
@@ -68,6 +80,12 @@ const menu_t* current_menu;
 
 static union
 {
+
+  struct // usable for anything that doesn't need an auxiliary variable
+  {
+    uint8_t cursor;
+    uint8_t enable;
+  } menu_item_bool_t;
 
   struct
   {
@@ -86,22 +104,11 @@ static union
   
   struct
   {
-    uint8_t cursor;
-    uint8_t enable;
-    int16_t delay_sec;
+    uint8_t cursor;     // 0 = Sleep, 1 = Delay, 2 = RFwake, 3 = RlySav, 4 = Save, 5 = Esc
+    int16_t delay_sec;  // 0 = OFF, >0 = Sleep timeout
+    uint8_t wake_rf;    // 1 = Y, 0 = N
+    uint8_t relay_save; // 1 = Y, 0 = N
   } sleep; 
-  
-  struct // display rotation
-  {
-    uint8_t cursor;
-    uint8_t rotate;
-  } display;
-
-  struct
-  {
-    uint8_t cursor;
-    uint8_t enable;
-  } debug;
 
   struct
   {
@@ -137,6 +144,7 @@ static union
     int16_t adc_value_old;
 
   } cal;
+
   struct
   {
     uint8_t step;
@@ -196,6 +204,14 @@ static void MENU_TParam_Run(void);
 static void MENU_Sleep_Init(void);
 static void MENU_Sleep_Run(void);
 
+static void MENU_WakeOnRF_Update(void);
+static void MENU_WakeOnRF_Init(void);
+static void MENU_WakeOnRF_Run(void);
+
+static void MENU_RelaySave_Update(void);
+static void MENU_RelaySave_Init(void);
+static void MENU_RelaySave_Run(void);
+
 static void MENU_Display_Init(void); // display rotation
 static void MENU_Display_Run(void);
 static void MENU_Display_Update(void);
@@ -216,7 +232,6 @@ static void MENU_Tune_Run(void);
 static void MENU_MemorySave_Init(void);
 static void MENU_MemoryLoad_Init(void);
 static void MENU_Memory_Run(void);
-
 
 static void MENU_About_Init(void);
 static void MENU_About_Run(void);
@@ -281,7 +296,6 @@ static void MENU_Main_Update(void)
     l_row = 2;
   }
 
-
   if (global.bypass_enable == TRUE)
   {
     DISP_Str(0, 3, str_Bypass, 1);
@@ -331,12 +345,12 @@ static void MENU_Main_Init(void)
   DISP_Str(0, 1,str_SWR,0);
   MENU_var.main.update_cnt = 0;
   MENU_var.main.old_pwr = -1; //Dummy value
-  MENU_var.main.counter_1sec =0;
-  MENU_var.main.sleep_timer =0;
+  MENU_var.main.counter_1sec = 0;
+  MENU_var.main.sleep_timer = 0;
   MENU_var.main.relais_backup = UTILI_Get_LC_Relays();
 }
 
-static void MENU_Main_Weakup(void)
+static void MENU_Main_Wakeup(void)
 {
    UTILI_Set_LC_Relays(MENU_var.main.relais_backup);
    MENU_Main_Init(); //Restore display
@@ -351,17 +365,20 @@ static void MENU_Main_Run(void)
   //global.sleep_delay_sec = 100;
   //-----------------------------------------
   
-  if ((global.PWR >= SLEEP_WAKEUP_PWR ) && (global.sleep_enable == TRUE))
-  {
-    if (MENU_var.main.sleep_timer == global.sleep_delay_sec)
+  // Only evaluate RF power for auto-wakeup IF FLAG_WAKE_ON_RF is set
+  if (global.flags & FLAG_WAKE_ON_RF_MASK)
+  { 
+    if ((global.PWR >= SLEEP_WAKEUP_PWR ) && (global.sleep_enable == TRUE))
     {
-      //sleeping weakup by power
-      MENU_Main_Weakup();
-    }
+      if (MENU_var.main.sleep_timer >= global.sleep_delay_sec)
+      {
+        MENU_Main_Wakeup(); // sleeping wakeup by power
+      }
 
-    MENU_var.main.sleep_timer=0; //Reset sleeptimer if PWR >0
-  }
-  
+      MENU_var.main.sleep_timer = 0; //Reset sleep countdown during Tx
+    }
+  } // if FLAG_WAKE_ON_RF bit is set
+
   if ((global.sleep_enable == TRUE) && (global.bypass_enable != TRUE))
   {
     if (MENU_var.main.sleep_timer < global.sleep_delay_sec)
@@ -373,13 +390,31 @@ static void MENU_Main_Run(void)
         MENU_var.main.sleep_timer++;
         if (MENU_var.main.sleep_timer == global.sleep_delay_sec)
         {
-          //Sleeping
+          // entering Sleep - fires once
           DISP_Clr();
-          DISP_Str(DISP_COL_CENTER, 1, str_sleeping, 0);
-          UTILI_Set_LC_Relays(0); //Reset all relays
+          
+          if (global.flags & FLAG_RELAY_SAVE_MASK)
+          {
+            UTILI_Set_LC_Relays(0); // Release relays to save battery
+//            DISP_Str(DISP_COL_CENTER, 1, str_sleeping, 0);
+          }
         }
       }
-    }
+    } // if (MENU_var.main.sleep_timer < global.sleep_delay_sec)
+
+    else
+    {
+      // counter_1sec keeps ticking every 10ms while sleeping
+      MENU_var.main.counter_1sec++;
+
+      // Throttle update: 3 ticks * 10ms = 30ms step rate (smooth ~3.8s sweep)
+      if (MENU_var.main.counter_1sec >= 3) 
+      {
+        MENU_var.main.counter_1sec = 0;
+        DISP_RenderScreenSaver();
+      } // flags & FLAG_SCREEN_SAVE
+    } // if (MENU_var.main.sleep_timer < global.sleep_delay_sec) else
+    
   }
   
 
@@ -396,7 +431,7 @@ static void MENU_Main_Run(void)
       }
     }
 
-    //Auto Tune
+    // Auto Tune
     if((global.tune_auto_enable == TRUE) && (global.bypass_enable != TRUE))
     {
       if((global.PWR > 0) && (global.SWR >= global.tune_auto_swr))
@@ -439,14 +474,12 @@ static void MENU_Main_Run(void)
   }
   else
   {
-     //sleeping weakup by button
+     //sleeping wakeup by button
     if (BUTTON_count == BUTTON_SHORT_PRESSED)
     {
-      MENU_Main_Weakup();
+      MENU_Main_Wakeup();
     }
   }
-
-
 
 }
 
@@ -637,76 +670,77 @@ static void MENU_TParam_Run(void)
 }
 
 
-//-- Menu_Sleep  --------------------------------------------------------------------------------------------------
+//-- Menu_Sleep --------------------------------------------------------------------------------------------------
 static void MENU_Sleep_Update(void)
 {
   uint8_t cursor = MENU_var.sleep.cursor;
-  if(MENU_var.sleep.enable == TRUE)
+  
+  // Row 0: Delay (0 displays "Off", >0 displays numeric seconds)
+  if (MENU_var.sleep.delay_sec == 0)
   {
-    DISP_Str(7, 0, str_On, (cursor == 0)); 
+    DISP_Str(7, 0, str_Off, (cursor == 0));
   }
   else
   {
-    DISP_Str(7, 0, str_Off, (cursor == 0)); 
+    char str[4];
+    UTILI_Int2Str(MENU_var.sleep.delay_sec, str, sizeof(str));
+    DISP_Str(7, 0, str, (cursor == 0));
   }
-  
-  char str[4];
-  UTILI_Int2Str(MENU_var.sleep.delay_sec, str, sizeof(str));
-  DISP_Str(7,1,str,(cursor == 1));
-  DISP_Str(0,3,str_Save,(cursor == 2));
-  DISP_Str(7,3,str_Esc, (cursor == 3));
-  
+
+  // Row 1: RF Wake
+  DISP_Str(9, 1, MENU_var.sleep.wake_rf ? "Y" : "N", (cursor == 1));
+
+  // Row 2: Relay Save
+  DISP_Str(9, 2, MENU_var.sleep.relay_save ? "Y" : "N", (cursor == 2));
+
+  // Row 3: Save / Esc Actions
+  DISP_Str(0, 3, str_Save, (cursor == 3));
+  DISP_Str(7, 3, str_Esc,  (cursor == 4));
 }
 
 static void MENU_Sleep_Init(void)
 {
   DISP_Clr();
   BUTTON_Reset();
-  DISP_Str(0, 0, str_Sleep, 0);
-  DISP_Str(0, 1, str_Delay,0);
-  MENU_var.sleep.cursor=0;
-  MENU_var.sleep.enable = global.sleep_enable;
-  MENU_var.sleep.delay_sec = global.sleep_delay_sec;
+  
+  DISP_Str(0, 0, str_Delay,  0);
+  DISP_Str(0, 1, str_RFwake, 0);
+  DISP_Str(0, 2, str_RlySave,0);
+
+  MENU_var.sleep.cursor     = 0;
+  MENU_var.sleep.delay_sec  = global.sleep_delay_sec;
+  MENU_var.sleep.wake_rf    = (global.flags & FLAG_WAKE_ON_RF_MASK) ? 1 : 0;
+  MENU_var.sleep.relay_save = (global.flags & FLAG_RELAY_SAVE_MASK) ? 1 : 0;
+
   MENU_Sleep_Update();
 }
 
 static void MENU_Sleep_Run(void)
 {
-  
+  // Short Press: Advance Cursor across items (0 -> 1 -> 2 -> 3 -> 4 -> 0)
   if (BUTTON_count == BUTTON_RELEASED)
   {
     MENU_var.sleep.cursor++;
-    if (MENU_var.sleep.cursor > 3)
+    if (MENU_var.sleep.cursor > 4)
     {
       MENU_var.sleep.cursor = 0;
     }
     MENU_Sleep_Update();
   }
   
+  // Long Press: Toggle / Adjust / Action
   if (BUTTON_count == BUTTON_LONG_PRESSED)
   {
     BUTTON_count -= BUTTON_LONG_REPEAT_DELAY_MAX;
     
-    //cursor at "Sleep"
-    if(MENU_var.sleep.cursor == 0)
+    // Row 0: "Delay" (0 -> 10 -> 20 -> ... -> SLEEP_DELAY_MAX -> 0)
+    if (MENU_var.sleep.cursor == 0)
     {
-      if(MENU_var.sleep.enable == TRUE)
+      if (MENU_var.sleep.delay_sec == 0)
       {
-        MENU_var.sleep.enable = FALSE;
+        MENU_var.sleep.delay_sec = SLEEP_DELAY_STEP_SLOW;
       }
-      else
-      {
-        MENU_var.sleep.enable = TRUE;
-      }
-      MENU_Sleep_Update();
-    }    
-    
-    
-    //cursor at "Delay"
-    if(MENU_var.sleep.cursor == 1)
-    {
-      
-      if(MENU_var.sleep.delay_sec >= SLEEP_DELAY_FAST_HIGHER)
+      else if (MENU_var.sleep.delay_sec >= SLEEP_DELAY_FAST_HIGHER)
       {
         MENU_var.sleep.delay_sec += SLEEP_DELAY_STEP_FAST;
       }
@@ -715,57 +749,82 @@ static void MENU_Sleep_Run(void)
         MENU_var.sleep.delay_sec += SLEEP_DELAY_STEP_SLOW;
       }
           
-      if(MENU_var.sleep.delay_sec > SLEEP_DELAY_MAX)
+      if (MENU_var.sleep.delay_sec > SLEEP_DELAY_MAX)
       {
-        MENU_var.sleep.delay_sec = SLEEP_DELAY_STEP_SLOW;
+        MENU_var.sleep.delay_sec = 0; // Wrap around to 0 (OFF)
       }
       
       MENU_Sleep_Update();
     }
 
-    
-//    if (MENU_var.tparam.cursor == 2) //cursor at "Save"
-    if (MENU_var.sleep.cursor == 2) //cursor at "Save"
+    // Row 1: "RFwake"
+    if (MENU_var.sleep.cursor == 1)
+    {
+      MENU_var.sleep.wake_rf ^= 1;
+      MENU_Sleep_Update();
+    }
+
+    // Row 2: "RlySav"
+    if (MENU_var.sleep.cursor == 2)
+    {
+      MENU_var.sleep.relay_save ^= 1;
+      MENU_Sleep_Update();
+    }
+
+    // Row 3 (Pos 3): "Save"
+    if (MENU_var.sleep.cursor == 3)
     {
       global.sleep_delay_sec = MENU_var.sleep.delay_sec;
-      global.sleep_enable = MENU_var.sleep.enable;
+      global.sleep_enable    = (global.sleep_delay_sec > 0) ? TRUE : FALSE;
+
+      if (MENU_var.sleep.wake_rf)
+        global.flags |= FLAG_WAKE_ON_RF_MASK;
+      else
+        global.flags &= ~FLAG_WAKE_ON_RF_MASK;
+
+      if (MENU_var.sleep.relay_save)
+        global.flags |= FLAG_RELAY_SAVE_MASK;
+      else
+        global.flags &= ~FLAG_RELAY_SAVE_MASK;
+
+      // Write changes to EEPROM
       EEPROM_Write((uint8_t)&ee_sleep_delay_sec, &global.sleep_delay_sec, sizeof(ee_sleep_delay_sec));
       EEPROM_Write((uint8_t)&ee_sleep_enable, &global.sleep_enable, sizeof(ee_sleep_enable));
+      EEPROM_Write((uint8_t)&ee_flags, &global.flags, sizeof(ee_flags));
+
       MENU_Init();
       return;
     }
     
-//    if (MENU_var.tparam.cursor == 3) //cursor at "Esc"
-    if (MENU_var.sleep.cursor == 3) //cursor at "Esc"
+    // Row 3 (Pos 4): "Esc"
+    if (MENU_var.sleep.cursor == 4)
     {
       MENU_Init();
       return;
     }
-    
-    
   }
-}
+} // MENU_Sleep_Run()
 
 //-- Menu Display Rotate  --------------------------------------------------------------------------------------------------
 
 static void MENU_Display_Update(void)
 {
-    if (MENU_var.display.rotate)
+    if (MENU_var.menu_item_bool_t.enable)
     {
         DISP_Str(0, 0, str_Rotate,
-                 MENU_var.display.cursor == 0);
+                 MENU_var.menu_item_bool_t.cursor == 0);
     }
     else
     {
         DISP_Str(0, 0, str_Normal,
-                 MENU_var.display.cursor == 0);
+                 MENU_var.menu_item_bool_t.cursor == 0);
     }
 
     DISP_Str(0, 3, str_Save,
-             MENU_var.display.cursor == 1);
+             MENU_var.menu_item_bool_t.cursor == 1);
 
     DISP_Str(7, 3, str_Esc,
-             MENU_var.display.cursor == 2);
+             MENU_var.menu_item_bool_t.cursor == 2);
 } // static void MENU_Sleep_Run()
 
 
@@ -774,9 +833,9 @@ static void MENU_Display_Init(void)
     DISP_Clr();
     BUTTON_Reset();
 
-    MENU_var.display.cursor = 0;
+    MENU_var.menu_item_bool_t.cursor = 0;
 
-    MENU_var.display.rotate =
+    MENU_var.menu_item_bool_t.enable =
         (global.flags & FLAG_DISPLAY_ROTATE_MASK) != 0;
 
     MENU_Display_Update();
@@ -786,11 +845,11 @@ static void MENU_Display_Run(void)
 {
     if (BUTTON_count == BUTTON_RELEASED)
     {
-        MENU_var.display.cursor++;
+        MENU_var.menu_item_bool_t.cursor++;
 
-        if (MENU_var.display.cursor > 2)
+        if (MENU_var.menu_item_bool_t.cursor > 2)
         {
-            MENU_var.display.cursor = 0;
+            MENU_var.menu_item_bool_t.cursor = 0;
         }
 
         MENU_Display_Update();
@@ -800,17 +859,17 @@ static void MENU_Display_Run(void)
     {
         BUTTON_count -= BUTTON_LONG_REPEAT_DELAY_MAX;
 
-        if (MENU_var.display.cursor == 0)
+        if (MENU_var.menu_item_bool_t.cursor == 0)
         {
-            MENU_var.display.rotate =
-                !MENU_var.display.rotate;
+            MENU_var.menu_item_bool_t.enable =
+                !MENU_var.menu_item_bool_t.enable;
 
             MENU_Display_Update();
         }
 
-        if (MENU_var.display.cursor == 1)
+        if (MENU_var.menu_item_bool_t.cursor == 1)
         {
-            if (MENU_var.display.rotate)
+            if (MENU_var.menu_item_bool_t.enable)
             {
                 global.flags |= FLAG_DISPLAY_ROTATE_MASK;
             }
@@ -829,34 +888,34 @@ static void MENU_Display_Run(void)
             MENU_Init();
         }
 
-        if (MENU_var.display.cursor == 2)
+        if (MENU_var.menu_item_bool_t.cursor == 2)
         {
             MENU_Init();
         }
     }
-}
+} // MENU_Display_Init()
 
 
 //-- Menu Debug  --------------------------------------------------------------------------------------------------
 
 static void MENU_Debug_Update(void)
 {
-    if (MENU_var.debug.enable)
+    if (MENU_var.menu_item_bool_t.enable)
     {
         DISP_Str(0, 0, str_On,
-                 MENU_var.debug.cursor == 0);
+                 MENU_var.menu_item_bool_t.cursor == 0);
     }
     else
     {
         DISP_Str(0, 0, str_Off,
-                 MENU_var.debug.cursor == 0);
+                 MENU_var.menu_item_bool_t.cursor == 0);
     }
 
     DISP_Str(0, 3, str_Save,
-             MENU_var.debug.cursor == 1);
+             MENU_var.menu_item_bool_t.cursor == 1);
 
     DISP_Str(7, 3, str_Esc,
-             MENU_var.debug.cursor == 2);
+             MENU_var.menu_item_bool_t.cursor == 2);
 }
 
 
@@ -865,9 +924,9 @@ static void MENU_Debug_Init(void)
     DISP_Clr();
     BUTTON_Reset();
 
-    MENU_var.debug.cursor = 0;
+    MENU_var.menu_item_bool_t.cursor = 0;
 
-    MENU_var.debug.enable =
+    MENU_var.menu_item_bool_t.enable =
         (global.flags & FLAG_DEBUG_MASK) != 0;
 
 //    DISP_Str(0, 0, "Debug", 0);
@@ -880,11 +939,11 @@ static void MENU_Debug_Run(void)
 {
     if (BUTTON_count == BUTTON_RELEASED)
     {
-        MENU_var.debug.cursor++;
+        MENU_var.menu_item_bool_t.cursor++;
 
-        if (MENU_var.debug.cursor > 2)
+        if (MENU_var.menu_item_bool_t.cursor > 2)
         {
-            MENU_var.debug.cursor = 0;
+            MENU_var.menu_item_bool_t.cursor = 0;
         }
 
         MENU_Debug_Update();
@@ -895,18 +954,18 @@ static void MENU_Debug_Run(void)
         BUTTON_count -= BUTTON_LONG_REPEAT_DELAY_MAX;
 
         // Cursor at Debug On/Off
-        if (MENU_var.debug.cursor == 0)
+        if (MENU_var.menu_item_bool_t.cursor == 0)
         {
-            MENU_var.debug.enable =
-                !MENU_var.debug.enable;
+            MENU_var.menu_item_bool_t.enable =
+                !MENU_var.menu_item_bool_t.enable;
 
             MENU_Debug_Update();
         }
 
         // Cursor at Save
-        if (MENU_var.debug.cursor == 1)
+        if (MENU_var.menu_item_bool_t.cursor == 1)
         {
-            if (MENU_var.debug.enable)
+            if (MENU_var.menu_item_bool_t.enable)
             {
                 global.flags |= FLAG_DEBUG_MASK;
             }
@@ -924,7 +983,7 @@ static void MENU_Debug_Run(void)
         }
 
         // Cursor at Esc
-        if (MENU_var.debug.cursor == 2)
+        if (MENU_var.menu_item_bool_t.cursor == 2)
         {
             MENU_Init();
             return;
@@ -1206,7 +1265,7 @@ static void MENU_CalPWR_Run(void)
         MENU_var.cal.adc_value[MENU_var.cal.step] = global.adc_f_mV; //save 
 
         DISP_Clr();
-        DISP_Str(DISP_COL_CENTER, 1, str_Ok, 0);
+        DISP_Str(DISP_COL_CENTER, 1, str_OK, 0);
         MENU_var.cal.step += 2; //steps 0->2 & 1->3
       }
       __delay_ms(100); // allow a bit of time for stability
@@ -1229,39 +1288,43 @@ static void MENU_CalPWR_Run(void)
         global.cal_point[0] = MENU_var.cal.cal_point[0];
         global.cal_point[1] = MENU_var.cal.cal_point[1];
 
-//        UTILI_Int2Str(global.cal_point[0], str, sizeof(str));
-//        DISP_Str(0, 0, "P0:", 0);
-//        DISP_Str(3, 0, str, 0);
-
-//        UTILI_Int2Str(global.cal_point[1], str, sizeof(str));
-//        DISP_Str(0, 1, "P1:", 0);
-//        DISP_Str(3, 1, str, 0);
-
         int16_t y1 = UTILI_deciWatt_to_centiVolt(global.cal_point[0]);  
         int16_t y2 = UTILI_deciWatt_to_centiVolt(global.cal_point[1]);
 
-//      deleted historic code for Y1, y2 display.
-        
         global.cal_gain = (int16_t) (((y2 - y1) * (int32_t) CAL_GAIN_MULTIPLIER) / (MENU_var.cal.adc_value[1] - MENU_var.cal.adc_value[0]));
-
         global.cal_offset = y1 - (int16_t) (((int32_t) global.cal_gain * MENU_var.cal.adc_value[0]) / CAL_GAIN_MULTIPLIER);
 
-//        UTILI_Int2Str(global.cal_gain, str, sizeof(str));
-//        DISP_Str(0, 2, "G:", 0);
-//        DISP_Str(2, 2, str, 0); // showed 4096
+        //      deleted historic code for Y1, y2 display.
 
-//        UTILI_Int2Str(global.cal_offset, str, sizeof(str));
-//        DISP_Str(0, 3, "O:", 0);
-//        DISP_Str(2, 3, str, 0); // showed 1223
-
-        __delay_ms(2000); // let's read it
-        
-        
         //Save new cal values to eeprom
         EEPROM_Write((uint8_t)&ee_cal_point_0, &global.cal_point[0], sizeof (ee_cal_point_0));
         EEPROM_Write((uint8_t)&ee_cal_point_1, &global.cal_point[1], sizeof (ee_cal_point_1));
         EEPROM_Write((uint8_t)&ee_cal_offset, &global.cal_offset, sizeof (ee_cal_offset));
         EEPROM_Write((uint8_t)&ee_cal_gain, &global.cal_gain, sizeof (ee_cal_gain));
+
+        if (global.flags & FLAG_DEBUG_MASK)
+        {
+
+            UTILI_Int2Str(global.cal_gain, str, sizeof(str));
+            DISP_Str(0, 2, "G:", 0);
+            DISP_Str(2, 2, str, 0); // showed 4096
+
+            UTILI_Int2Str(global.cal_offset, str, sizeof(str));
+            DISP_Str(0, 3, "O:", 0);
+            DISP_Str(2, 3, str, 0); // showed 1223
+
+            UTILI_Int2Str(global.cal_point[0], str, sizeof(str));
+            DISP_Str(0, 0, "P0:", 0);
+            DISP_Str(3, 0, str, 0);
+
+            UTILI_Int2Str(global.cal_point[1], str, sizeof(str));
+            DISP_Str(0, 1, "P1:", 0);
+            DISP_Str(3, 1, str, 0);
+
+            __delay_ms(2000); // let's read it
+        
+        } // if debug 
+        
 
         MENU_Init();
         return;
