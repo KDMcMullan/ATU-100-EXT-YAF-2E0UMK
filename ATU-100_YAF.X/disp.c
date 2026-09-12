@@ -1,5 +1,18 @@
-/**
+/*
+ * ATU-100_EXT_YAF 
+ * Yet Another Firmware
+ * Author (presumably): DG4SN
+ *
  * Display functions
+ * (Presumably) created around March 2022
+ *
+ * Modified 10-Sep-2026 2E0UMK
+ * Changed to Int Osc and disabled redundant clock settings.
+ * 
+ * Modified 12-Sep-2026 2E0UMK
+ * Added a function to draw a vertical line and a wrapper to scroll it
+ * back-and-forth like Larson Lights (for an OLED screen saver).
+ * 
  */
 
 #include "defines.h"
@@ -18,23 +31,23 @@ uint8_t DISP_rotate;
 void I2C_Start(void)
 {
   I2C_SCL_DIR = 1; //SCL=1
-  DELAY_5_us();
+  DELAY_2_us();
   I2C_SDA_DIR = 1; //SDA=1
-  DELAY_5_us();
+  DELAY_2_us();
   I2C_SDA_DIR = 0; //SDA=0
-  DELAY_5_us();
+  DELAY_2_us();
   I2C_SCL_DIR = 0; //SCL=0
-  DELAY_5_us();
+  DELAY_2_us();
 }
 
 void I2C_Stop(void)
 {
   I2C_SDA_DIR = 0; //SDA=0
-  DELAY_5_us();
+  DELAY_2_us();
   I2C_SCL_DIR = 1; //SCL=1
-  DELAY_5_us();
+  DELAY_2_us();
   I2C_SDA_DIR = 1; //SDA=1
-  DELAY_5_us();
+  DELAY_2_us();
 
 }
 
@@ -51,21 +64,21 @@ void I2C_Write(uint8_t value)
       I2C_SDA_DIR = 1;
     }
 
-    DELAY_5_us();
+    DELAY_2_us();
 
     I2C_SCL_DIR = 1;
-    DELAY_5_us();
+    DELAY_2_us();
     I2C_SCL_DIR = 0;
-    DELAY_5_us();
+    DELAY_2_us();
     value = (uint8_t) (value << 1);
   }
 
   I2C_SDA_DIR = 1; //ACK
-  DELAY_5_us();
+  DELAY_2_us();
   I2C_SCL_DIR = 1;
-  DELAY_5_us();
+  DELAY_2_us();
   I2C_SCL_DIR = 0;
-  DELAY_5_us();
+  DELAY_2_us();
 }
 
 void DISP_Command(uint8_t command)
@@ -354,3 +367,134 @@ void DISP_SWR(uint8_t col, uint8_t row, int16_t centiSWR, uint8_t invert)
   }
   DISP_Str(col, row, str, invert);
 }
+/*
+void DISP_DrawVLine(uint8_t x, uint8_t state)
+{
+    if (x >= RES_X) return; // Out of bounds safety check
+
+    uint8_t fill_byte = state ? 0xFF : 0x00;
+
+    // SSD1306 page addressing: 8 pages (0..7), each 8 pixels tall.
+    // Stream fill_byte to column 'x' across all 8 pages for a 64-pixel vertical bar.
+    for (uint8_t page = 0; page <= 7; page++)
+    {
+        DISP_DataAddress(page, x);
+        I2C_Write(fill_byte);
+        I2C_Stop();
+    }
+}
+*/
+
+/**
+ * @brief True streamed VLine drawing with zero repeated Start sequences.
+ */
+void DISP_DrawVLineFast(uint8_t x, uint8_t state)
+{
+    if (x >= RES_X) return;
+    uint8_t fill_byte = state ? 0xFF : 0x00;
+
+    for (uint8_t page = 0; page <= 7; page++)
+    {
+        // 1. Send page setup command sequence
+        I2C_Start();
+        I2C_Write(DISP_i2_addr);
+        I2C_Write(0x00);                // Command stream mode
+        I2C_Write(0xB0 + page);         // Page number
+        I2C_Write(x & 0x0F);            // Low nibble col
+        I2C_Write(0x10 + (x >> 4));     // High nibble col
+
+        // 2. Write pixel byte immediately without extra Start frame
+        I2C_Start();                    // Restart for Data
+        I2C_Write(DISP_i2_addr);
+        I2C_Write(0x40);                // Data mode (Co=0, D/C#=1)
+        I2C_Write(fill_byte);
+        I2C_Stop();                     // Close page write
+    }
+}
+
+/**
+ * @brief Renders a single step of the Larson scanner screensaver.
+ * @note 8-pixel wide bar moving at 4 pixels per step with zero-edge-hiccup.
+ */
+void DISP_RenderScreenSaver(void)
+{
+    static int16_t x_pos = 0;
+    static int8_t  dir = 4; // 4 pixels per tick step
+    
+    int16_t old_pos = x_pos;
+
+    if (dir > 0)
+    {
+        // MOVING RIGHT: Erase trailing (left), draw leading (right)
+        for (uint8_t i = 0; i < 4; i++)
+        {
+            DISP_DrawVLineFast((uint8_t)(old_pos + i), 0);
+            DISP_DrawVLineFast((uint8_t)(old_pos + 8 + i), 1);
+        }
+        
+        x_pos += 4;
+        if (x_pos >= 120)
+        {
+            x_pos = 120;
+            dir = -4; // Reverse direction for NEXT frame
+        }
+    }
+    else
+    {
+        // MOVING LEFT: Erase trailing (right), draw leading (left)
+        for (uint8_t i = 0; i < 4; i++)
+        {
+            DISP_DrawVLineFast((uint8_t)(old_pos + 7 - i), 0);
+            DISP_DrawVLineFast((uint8_t)(old_pos - 1 - i), 1);
+        }
+        
+        x_pos -= 4;
+        if (x_pos <= 0)
+        {
+            x_pos = 0;
+            dir = 4; // Reverse direction for NEXT frame
+        }
+    }
+}
+
+
+/*
+
+void DISP_MoveVLine(uint8_t old_col, uint8_t new_col)
+{
+    // Clear only the previous column instead of full screen clear to eliminate flicker
+    if (old_col < RES_X)
+    {
+        DISP_DrawVLine(old_col, 0);
+    }
+
+    if (new_col < RES_X)
+    {
+        DISP_DrawVLine(new_col, 1);
+    }
+}
+
+
+void DISP_RenderScreenSaver(void)
+{
+    static int8_t col = 0;
+    static int8_t dir = 1;
+    int8_t old_col = col;
+
+    // Advance column position
+    col += dir;
+    if (col >= (RES_X - 1))
+    {
+        col = RES_X - 1;
+        dir = -1;
+    }
+    else if (col <= 0)
+    {
+        col = 0;
+        dir = 1;
+    }
+
+    // Move line directly on hardware
+    DISP_MoveVLine((uint8_t)old_col, (uint8_t)col);
+}
+*/
