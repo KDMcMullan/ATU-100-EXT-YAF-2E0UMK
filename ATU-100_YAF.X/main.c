@@ -2,6 +2,8 @@
  * ATU-100_EXT_YAF 
  * Yet Another Firmware
  * by DG4SN
+ * 
+ * (Presumably) created around March 2022
  *
  * Modified 09-Sep-2026 2E0UMK
  * Added display rotate on init.
