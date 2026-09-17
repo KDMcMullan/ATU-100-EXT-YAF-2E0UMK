@@ -4,7 +4,7 @@ A tweaked version of DG4SN's version of N7DCC's project.
 I share all of DG4SN's given motivations for this project: particularly the ability to use an environment I understand. QRP has only a very loose definition, but I don't use power quite as low as Sven's. I use the tuner in the 10W to 50W bracket. Initially my core desire was to be able to switch on and off auto-tune without adding an exta button. Unfortunately, Sven has [stopped developing the firmware](https://github.com/DG4SN/ATU-100-EXT-YAF/issues/2#issuecomment-2628881203). What better opportunity for a play? There are a couple of places I felt it could use some improvement:
 
 - My device is evidently slightly different, since when I flashed the DG4SN code, my display was upside-down. A menu item has been added to correct this.
-- The auto cal wasn't working. **(It is now!)** ~~Looking at the code, I believe that once the threshold is passed, that value is used as the calibration value, if it's stable. The definition of "stable" is that it's been the same for two sucessive iterations. This is thought to be insufficient. ~~
+- The auto cal wasn't working. **(It is now!)**
 - I would like a power meter rather than just a flickery number.
 - I'll have a play with a power meter and maybe a rolling history of power very soon.
 
