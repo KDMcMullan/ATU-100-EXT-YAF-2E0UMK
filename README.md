@@ -12,9 +12,11 @@ I share all of DG4SN's given motivations for this project: particularly the abil
 
 This happens quite a bit. I selected Sven's codebase as it wasbased in MPLAB and wold work with my PICkit3. You don't need a PICkit toflash the software. Here are two good free options which might work with Ham Radio gubbins you already have lying around:
 
-Using [FT232RL] (https://github.com/gphalkes/fpicprog)
+Using [Arduino](https://github.com/riyas-org/a-p-hamprog)
 
-Using [CH240G] (https://github.com/microtherion/ChipHeadBang)
+Using [FT232RL](https://github.com/gphalkes/fpicprog)
+
+Using [CH240G](https://github.com/microtherion/ChipHeadBang)
 
 In the meantime, here's a photo of my internals. I've seen at least three variations on how to istall this board. Note that I had to add the /MCLR pin. In order to flash I must disconnect the display. No big deal.
 
