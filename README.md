@@ -48,7 +48,7 @@ This code compiles in this environment and runs fine on my ATU-100.
 The original project by N7DDC
 https://github.com/Dfinitski/N7DDC-ATU-100-mini-and-extended-boards
 
-Important Imported Notes
+## Important Notes
 This firmware only works with the ATU-100_EXT (7x7) hardware, the PIC16F1938 MCU and the OLED Display 128x64px. Before you start please make a backup of the original firmware and be sure that you can restore it.
 
 - You act at your own risk!
@@ -75,7 +75,7 @@ I have seen some room for improvement in the firmware. Unfortunately the origina
 ## The original project by N7DDC
 https://github.com/Dfinitski/N7DDC-ATU-100-mini-and-extended-boards
 
-## Imported Notes
+## Important Notes
 This firmware only works with the ATU-100_EXT (7x7) hardware, the PIC16F1938 MCU and the OLED Display 128x64px.
 Before you start please make a backup of the original firmware and be sure that you can restore it.
 ```diff
