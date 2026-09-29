@@ -268,10 +268,10 @@ const menu_t menuDebug = {str_MENU_Debug, MENU_Debug_Init, MENU_Debug_Run};
 
 
 #define MENU_SUBTOP_ITEMS    6
-const menu_t* ptrSubTopMenu[MENU_SUBTOP_ITEMS] = { &menuBypass, &menuLoad, &menuSave, &menuReset, &menuSubSetup, &menuAbout};
+const menu_t* ptrSubTopMenu[MENU_SUBTOP_ITEMS] = { &menuBypass, &menuSubSetup, &menuLoad, &menuSave, &menuReset, &menuAbout};
 
 #define MENU_SUBSETUP_ITEMS    6
-const menu_t* ptrSubSetupMenu[MENU_SUBSETUP_ITEMS] = { &menuTParam, &menuSleep, &menuCal, &menuDisplay, &menuRelTest, &menuDebug };
+const menu_t* ptrSubSetupMenu[MENU_SUBSETUP_ITEMS] = { &menuSleep, &menuTParam, &menuCal, &menuRelTest, &menuDisplay, &menuDebug };
 const menu_t menuTune     ={NULL, MENU_Tune_Init, MENU_Tune_Run};
 const menu_t menuNameEdit ={NULL, MENU_NameEdit_Init, MENU_NameEdit_Run};
 const menu_t menuStartupSave ={NULL, MENU_StartupSave_Init, MENU_StartupSave_Run};
