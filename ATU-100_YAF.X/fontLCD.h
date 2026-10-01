@@ -168,7 +168,7 @@ static const LCDRow LCD_DP[] = // 6 bytes instead of 64
 
 static const uint8_t LCDdigits[16] =
 {
-    0x3F,  /* 0 */
+    0x3F,  /* 0 = A,B,C,D,E,F = bits 5,4,3,2,1,0 = 0x3F */
     0x06,  /* 1 */
     0x5B,  /* 2 */
     0x4F,  /* 3 */
