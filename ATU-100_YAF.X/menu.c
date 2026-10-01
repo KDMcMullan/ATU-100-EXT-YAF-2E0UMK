@@ -37,6 +37,10 @@
  * Explicitly cast (16 bit) TUNE_state into (8 bit) state to silence a
  * warning.
  * 
+ * Modified 29-Sep-2026 2E0UMK
+ * Added large display selection menu. Tweaked the "Rotate" display menu. 
+ * Jiggled the menus around a little.
+ * 
  */
 
 #include "defines.h"
@@ -87,6 +91,13 @@ static union
     uint8_t enable;
   } menu_item_bool_t;
 
+  struct
+  {
+    uint8_t cursor;
+    uint8_t rotate;
+    uint8_t large;
+  } display;
+  
   struct
   {
     uint8_t cursor;
@@ -164,7 +175,7 @@ static union
     uint8_t cursor;
     uint8_t button_repeat_delay;
     tunemem_t tunemem;
-  }nameedit;        
+  } nameedit;        
           
   struct
   {
@@ -172,7 +183,7 @@ static union
     uint8_t cursor;
     tunemem_t tunemem;
     uint8_t str_terminate; //must stay direkt behind memory
-  }startupsave;    
+  } startupsave;    
   
   
 } MENU_var;
@@ -268,10 +279,10 @@ const menu_t menuDebug = {str_MENU_Debug, MENU_Debug_Init, MENU_Debug_Run};
 
 
 #define MENU_SUBTOP_ITEMS    6
-const menu_t* ptrSubTopMenu[MENU_SUBTOP_ITEMS] = { &menuBypass, &menuSubSetup, &menuLoad, &menuSave, &menuReset, &menuAbout};
+const menu_t* ptrSubTopMenu[MENU_SUBTOP_ITEMS] = { &menuLoad, &menuBypass, &menuSubSetup, &menuSave, &menuReset, &menuAbout};
 
 #define MENU_SUBSETUP_ITEMS    6
-const menu_t* ptrSubSetupMenu[MENU_SUBSETUP_ITEMS] = { &menuSleep, &menuTParam, &menuCal, &menuRelTest, &menuDisplay, &menuDebug };
+const menu_t* ptrSubSetupMenu[MENU_SUBSETUP_ITEMS] = { &menuSleep, &menuTParam, &menuDisplay, &menuCal, &menuRelTest, &menuDebug };
 const menu_t menuTune     ={NULL, MENU_Tune_Init, MENU_Tune_Run};
 const menu_t menuNameEdit ={NULL, MENU_NameEdit_Init, MENU_NameEdit_Run};
 const menu_t menuStartupSave ={NULL, MENU_StartupSave_Init, MENU_StartupSave_Run};
@@ -281,9 +292,16 @@ const menu_t menuStartupSave ={NULL, MENU_StartupSave_Init, MENU_StartupSave_Run
 
 static void MENU_Main_Update(void)
 {
+  if (global.flags & FLAG_DISPLAY_LARGE_MASK)
+  {
+      DISP_LCD_PWR(40, 0, global.PWR);
+      DISP_LCD_SWR(40, 4, global.SWR);
+      return;
+  }
+
   uint8_t c_row = 2;
   uint8_t l_row = 3;
-  
+ 
   const char *p_str = NULL;
   char str[7];
  
@@ -341,8 +359,18 @@ static void MENU_Main_Init(void)
 {
   DISP_Clr();
   BUTTON_Reset();
-  DISP_Str(0, 0,str_PWR,0);
-  DISP_Str(0, 1,str_SWR,0);
+
+  DISP_Str(0, 0, str_PWR, 0);
+
+  if (global.flags & FLAG_DISPLAY_LARGE_MASK)
+  {
+    DISP_Str(0, 2, str_SWR, 0);
+  }
+  else
+  {
+    DISP_Str(0, 1, str_SWR, 0);
+  }
+
   MENU_var.main.update_cnt = 0;
   MENU_var.main.old_pwr = -1; //Dummy value
   MENU_var.main.counter_1sec = 0;
@@ -809,23 +837,42 @@ static void MENU_Sleep_Run(void)
 
 static void MENU_Display_Update(void)
 {
-    if (MENU_var.menu_item_bool_t.enable)
-    {
-        DISP_Str(0, 0, str_Rotate,
-                 MENU_var.menu_item_bool_t.cursor == 0);
-    }
-    else
-    {
-        DISP_Str(0, 0, str_Normal,
-                 MENU_var.menu_item_bool_t.cursor == 0);
-    }
+  // Row 0: Rotate
+  DISP_Str(0, 0, str_Rotate, 0);
 
-    DISP_Str(0, 3, str_Save,
-             MENU_var.menu_item_bool_t.cursor == 1);
+  if (MENU_var.display.rotate)
+  {
+    DISP_Str(7, 0, str_On,
+             MENU_var.display.cursor == 0);
+  }
+  else
+  {
+    DISP_Str(7, 0, str_Off,
+             MENU_var.display.cursor == 0);
+  }
 
-    DISP_Str(7, 3, str_Esc,
-             MENU_var.menu_item_bool_t.cursor == 2);
-} // static void MENU_Sleep_Run()
+  // Row 1: Large
+  DISP_Str(0, 1, str_Large, 0);
+
+  if (MENU_var.display.large)
+  {
+    DISP_Str(7, 1, str_On,
+             MENU_var.display.cursor == 1);
+  }
+  else
+  {
+    DISP_Str(7, 1, str_Off,
+             MENU_var.display.cursor == 1);
+  }
+
+  // Row 3: Save / Esc
+  DISP_Str(0, 3, str_Save,
+           MENU_var.display.cursor == 2);
+
+  DISP_Str(7, 3, str_Esc,
+           MENU_var.display.cursor == 3);
+
+} // MENU_Display_Update
 
 
 static void MENU_Display_Init(void)
@@ -833,23 +880,28 @@ static void MENU_Display_Init(void)
     DISP_Clr();
     BUTTON_Reset();
 
-    MENU_var.menu_item_bool_t.cursor = 0;
+    MENU_var.display.cursor = 0;
 
-    MENU_var.menu_item_bool_t.enable =
+    MENU_var.display.rotate =
         (global.flags & FLAG_DISPLAY_ROTATE_MASK) != 0;
 
+    MENU_var.display.large =
+        (global.flags & FLAG_DISPLAY_LARGE_MASK) != 0;
+
     MENU_Display_Update();
-}
+
+} // MENU_Display_Init
+
 
 static void MENU_Display_Run(void)
 {
     if (BUTTON_count == BUTTON_RELEASED)
     {
-        MENU_var.menu_item_bool_t.cursor++;
+        MENU_var.display.cursor++;
 
-        if (MENU_var.menu_item_bool_t.cursor > 2)
+        if (MENU_var.display.cursor > 3)
         {
-            MENU_var.menu_item_bool_t.cursor = 0;
+            MENU_var.display.cursor = 0;
         }
 
         MENU_Display_Update();
@@ -859,23 +911,40 @@ static void MENU_Display_Run(void)
     {
         BUTTON_count -= BUTTON_LONG_REPEAT_DELAY_MAX;
 
-        if (MENU_var.menu_item_bool_t.cursor == 0)
+        if (MENU_var.display.cursor == 0) // rotate
         {
-            MENU_var.menu_item_bool_t.enable =
-                !MENU_var.menu_item_bool_t.enable;
+            MENU_var.display.rotate =
+                !MENU_var.display.rotate;
 
             MENU_Display_Update();
         }
 
-        if (MENU_var.menu_item_bool_t.cursor == 1)
+        if (MENU_var.display.cursor == 1) // large
         {
-            if (MENU_var.menu_item_bool_t.enable)
+            MENU_var.display.large =
+                !MENU_var.display.large;
+
+            MENU_Display_Update();
+        }
+
+        if (MENU_var.display.cursor == 2) // save
+        {
+            if (MENU_var.display.rotate)
             {
                 global.flags |= FLAG_DISPLAY_ROTATE_MASK;
             }
             else
             {
                 global.flags &= ~FLAG_DISPLAY_ROTATE_MASK;
+            }
+
+            if (MENU_var.display.large)
+            {
+                global.flags |= FLAG_DISPLAY_LARGE_MASK;
+            }
+            else
+            {
+                global.flags &= ~FLAG_DISPLAY_LARGE_MASK;
             }
 
             EEPROM_Write((uint8_t)&ee_flags,
@@ -886,14 +955,16 @@ static void MENU_Display_Run(void)
                       (global.flags & FLAG_DISPLAY_ROTATE_MASK) != 0);
 
             MENU_Init();
+            return;
         }
 
-        if (MENU_var.menu_item_bool_t.cursor == 2)
+        if (MENU_var.display.cursor == 3) // escape
         {
             MENU_Init();
+            return;
         }
     }
-} // MENU_Display_Init()
+} // MENU_Display_Run
 
 
 //-- Menu Debug  --------------------------------------------------------------------------------------------------
