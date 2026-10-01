@@ -294,8 +294,8 @@ static void MENU_Main_Update(void)
 {
   if (global.flags & FLAG_DISPLAY_LARGE_MASK)
   {
-      DISP_LCD_PWR(40, 0, global.PWR);
-      DISP_LCD_SWR(40, 4, global.SWR);
+      DISP_LCD_PWR(56, 0, global.PWR);
+      DISP_LCD_SWR(56, 4, global.SWR);
       return;
   }
 
