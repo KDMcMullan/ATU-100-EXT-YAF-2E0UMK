@@ -13,11 +13,14 @@
  * Added a function to draw a vertical line and a wrapper to scroll it
  * back-and-forth like Larson Lights (for an OLED screen saver).
  * 
+ * Modified 29-Sep-2026 2E0UMK
+ * Added functions to display large LCD font.
+ * 
  */
 
 #include "defines.h"
 #include "font5x8.h"
-
+#include "fontLCD.h"
 
 #define FONT_WIDTH    5       //5pixel (muliply by 2)
 #define FONT_SPACING (5+1)  //5pixel font + 1 pixel space  (muliply by 2)
@@ -184,9 +187,7 @@ void DISP_Init(uint8_t i2_addr, uint8_t rotate)
   //
   I2C_Write(0x2E); //  stop scrolling
   //
-  
-  
- 
+   
   if (DISP_rotate == TRUE)
   {
     I2C_Write(0xA0); //  segment re-map, A0 - normal, A1 - remapped
@@ -323,6 +324,306 @@ void DISP_Str(uint8_t col, uint8_t row, const char *str, uint8_t invert)
 
 }
 
+#define LCD_WIDTH       16
+#define LCD_HEIGHT      32
+#define LCD_PAGES       4
+#define LCD_MAX_CHARS   5
+
+static uint8_t DISP_LCD_GetMask(char c)
+{
+    if ((c >= '0') && (c <= '9'))
+    {
+        return LCDdigits[c - '0'];
+    }
+
+    if ((c >= 'A') && (c <= 'F'))
+    {
+        return LCDdigits[c - 'A' + 10];
+    }
+
+    if (c == '.')
+    {
+        return LCD_SEG_DP;
+    }
+
+    return 0;
+}
+
+static void LCD_AddSegment(uint16_t *bitmap,
+                           const LCDRow *segment,
+                           uint8_t count)
+{
+  uint8_t i;
+
+  for (i = 0; i < count; i++)
+  {
+    bitmap[segment[i].row] |= segment[i].bits;
+  }
+}
+
+static void DISP_LCD_GetBitmap(char c, uint16_t *bitmap)
+{
+    uint8_t mask;
+    uint8_t row;
+
+    mask = DISP_LCD_GetMask(c);
+
+    for (row = 0; row < LCD_HEIGHT; row++)
+    {
+        bitmap[row] = 0;
+    }
+
+    if (mask & LCD_SEG_A)
+    {
+        LCD_AddSegment(bitmap, LCD_A,
+                       sizeof(LCD_A) / sizeof(LCD_A[0]));
+    }
+
+    if (mask & LCD_SEG_B)
+    {
+        LCD_AddSegment(bitmap, LCD_B,
+                       sizeof(LCD_B) / sizeof(LCD_B[0]));
+    }
+
+    if (mask & LCD_SEG_C)
+    {
+        LCD_AddSegment(bitmap, LCD_C,
+                       sizeof(LCD_C) / sizeof(LCD_C[0]));
+    }
+
+    if (mask & LCD_SEG_D)
+    {
+        LCD_AddSegment(bitmap, LCD_D,
+                       sizeof(LCD_D) / sizeof(LCD_D[0]));
+    }
+
+    if (mask & LCD_SEG_E)
+    {
+        LCD_AddSegment(bitmap, LCD_E,
+                       sizeof(LCD_E) / sizeof(LCD_E[0]));
+    }
+
+    if (mask & LCD_SEG_F)
+    {
+        LCD_AddSegment(bitmap, LCD_F,
+                       sizeof(LCD_F) / sizeof(LCD_F[0]));
+    }
+
+    if (mask & LCD_SEG_G)
+    {
+        LCD_AddSegment(bitmap, LCD_G,
+                       sizeof(LCD_G) / sizeof(LCD_G[0]));
+    }
+
+    if (mask & LCD_SEG_DP)
+    {
+        LCD_AddSegment(bitmap, LCD_DP,
+                       sizeof(LCD_DP) / sizeof(LCD_DP[0]));
+    }
+
+} // DSP_LCD_GetBitmap
+
+
+static void DISP_LCD_WriteBitmap(uint8_t x,
+                                 uint8_t page,
+                                 const uint16_t *bitmap)
+{
+    uint8_t lcd_page;
+    uint8_t column;
+    uint8_t bit;
+    uint8_t value;
+
+    if (x > (RES_X - LCD_WIDTH))
+    {
+        return;
+    }
+
+    if (page > 4)
+    {
+        return;
+    }
+
+    for (lcd_page = 0; lcd_page < LCD_PAGES; lcd_page++)
+    {
+        DISP_DataAddress(page + lcd_page, x);
+
+        for (column = 0; column < LCD_WIDTH; column++)
+        {
+            value = 0;
+
+            for (bit = 0; bit < 8; bit++)
+            {
+                if (bitmap[(lcd_page * 8) + bit]
+                    & ((uint16_t)0x8000 >> column))
+                {
+                    value |= (uint8_t)(1 << bit);
+                }
+            }
+
+            I2C_Write(value);
+        }
+
+        I2C_Stop();
+    }
+}
+
+
+static void DISP_LCD_Char(uint8_t x, uint8_t page, char c)
+{
+    uint16_t bitmap[LCD_HEIGHT];
+
+    DISP_LCD_GetBitmap(c, bitmap);
+    DISP_LCD_WriteBitmap(x, page, bitmap);
+}
+
+
+static void DISP_LCD_CharDP(uint8_t x, uint8_t page, char c)
+{
+    uint16_t bitmap[LCD_HEIGHT];
+    uint16_t dp_bitmap[LCD_HEIGHT];
+    uint8_t row;
+
+    DISP_LCD_GetBitmap(c, bitmap);
+    DISP_LCD_GetBitmap('.', dp_bitmap);
+
+    for (row = 0; row < LCD_HEIGHT; row++)
+    {
+        bitmap[row] |= dp_bitmap[row];
+    }
+
+    DISP_LCD_WriteBitmap(x, page, bitmap);
+}
+
+
+static void DISP_LCD_Str(uint8_t x, uint8_t page, const char *str)
+{
+    uint8_t i;
+    uint8_t pos;
+
+    /*
+     * Always write five character positions.
+     * A decimal point is overlaid on the preceding character
+     * and does not consume a character position.
+     */
+    pos = 0;
+
+    for (i = 0; i < LCD_MAX_CHARS; i++)
+    {
+        if (str[i] == 0)
+        {
+            break;
+        }
+
+        if (str[i] == '.')
+        {
+            if (pos > 0)
+            {
+                DISP_LCD_CharDP(x + ((pos - 1) * LCD_WIDTH),
+                                page,
+                                str[pos - 1]);
+            }
+        }
+        else
+        {
+            DISP_LCD_Char(x + (pos * LCD_WIDTH),
+                          page,
+                          str[i]);
+
+            pos++;
+        }
+    }
+
+    /*
+     * Clear any remaining character positions.
+     */
+    while (pos < LCD_MAX_CHARS)
+    {
+        DISP_LCD_Char(x + (pos * LCD_WIDTH),
+                      page,
+                      ' ');
+        pos++;
+    }
+
+} // DISP_LCD_Str
+
+
+void DISP_LCD_PWR(uint8_t x, uint8_t page, int16_t deciWatt)
+{
+    char str[6];
+    uint16_t watts;
+
+    if (deciWatt < 100)
+    {
+        str[0] = (char)('0' + (deciWatt / 10));
+        str[1] = '.';
+        str[2] = (char)('0' + (deciWatt % 10));
+        str[3] = 0;
+    }
+    else
+    {
+        watts = (uint16_t)(deciWatt / 10);
+
+        if (watts > 999)
+        {
+            watts = 999;
+        }
+
+        str[0] = (char)('0' + (watts / 100));
+        str[1] = (char)('0' + ((watts / 10) % 10));
+        str[2] = (char)('0' + (watts % 10));
+
+        if (str[0] == '0')
+        {
+            str[0] = ' ';
+        }
+
+        if (str[0] == ' ')
+        {
+            if (str[1] == '0')
+            {
+                str[1] = ' ';
+            }
+        }
+
+        str[3] = 0;
+    }
+
+    DISP_LCD_Str(x, page, str);
+}
+
+
+void DISP_LCD_SWR(uint8_t x, uint8_t page, int16_t centiSWR)
+{
+    char str[6];
+    uint16_t value;
+
+    if (centiSWR < 100)
+    {
+        str[0] = '0';
+        str[1] = '.';
+        str[2] = '0';
+        str[3] = '0';
+        str[4] = 0;
+    }
+    else
+    {
+        value = (uint16_t)centiSWR;
+
+        if (value > 999)
+        {
+            value = 999;
+        }
+
+        str[0] = (char)('0' + (value / 100));
+        str[1] = '.';
+        str[2] = (char)('0' + ((value / 10) % 10));
+        str[3] = (char)('0' + (value % 10));
+        str[4] = 0;
+    }
+
+    DISP_LCD_Str(x, page, str);
+}
+
 /**
  * Show power as x.xW when < 10W and xxW or xxxW if higher
  */
@@ -456,45 +757,3 @@ void DISP_RenderScreenSaver(void)
         }
     }
 }
-
-
-/*
-
-void DISP_MoveVLine(uint8_t old_col, uint8_t new_col)
-{
-    // Clear only the previous column instead of full screen clear to eliminate flicker
-    if (old_col < RES_X)
-    {
-        DISP_DrawVLine(old_col, 0);
-    }
-
-    if (new_col < RES_X)
-    {
-        DISP_DrawVLine(new_col, 1);
-    }
-}
-
-
-void DISP_RenderScreenSaver(void)
-{
-    static int8_t col = 0;
-    static int8_t dir = 1;
-    int8_t old_col = col;
-
-    // Advance column position
-    col += dir;
-    if (col >= (RES_X - 1))
-    {
-        col = RES_X - 1;
-        dir = -1;
-    }
-    else if (col <= 0)
-    {
-        col = 0;
-        dir = 1;
-    }
-
-    // Move line directly on hardware
-    DISP_MoveVLine((uint8_t)old_col, (uint8_t)col);
-}
-*/
