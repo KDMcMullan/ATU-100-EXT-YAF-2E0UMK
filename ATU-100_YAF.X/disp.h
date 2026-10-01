@@ -1,21 +1,17 @@
 /*
  * ATU-100_EXT_YAF 
  * Yet Another Firmware
- * Author (presumably): Sven, DG4SN
+ * Author: Sven, DG4SN
+ * Created: 23 March 2022
  *
  * Display prototypes
- * (Presumably) created around March 2022
  *
  * Modified 12-Sep-2026 2E0UMK
  * Added functions for OLED screensaver.
  * 
- */
-
-/* 
- * File:   disp.h
- * Author: sven
- *
- * Created on 23. März 2022, 15:38
+ * Modified 29-Sep-2026 2E0UMK
+ * Added prototypes for displaying large fonts.
+ * 
  */
 
 #ifndef DISP_H
@@ -40,7 +36,8 @@ void DISP_Clr(void);
 void DISP_DrawVLine(uint8_t x, uint8_t state);
 void DISP_MoveVLine(uint8_t old_col, uint8_t new_col);
 void DISP_RenderScreenSaver(void);
-
+void DISP_LCD_PWR(uint8_t x, uint8_t page, int16_t deciWatt);
+void DISP_LCD_SWR(uint8_t x, uint8_t page, int16_t centiSWR);
 
 #ifdef	__cplusplus
 }
