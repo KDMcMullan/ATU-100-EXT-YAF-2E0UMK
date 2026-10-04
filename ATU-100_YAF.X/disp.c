@@ -13,7 +13,7 @@
  * Added a function to draw a vertical line and a wrapper to scroll it
  * back-and-forth like Larson Lights (for an OLED screen saver).
  * 
- * Modified 29-Sep-2026 2E0UMK
+ * Modified 04-Oct-2026 2E0UMK
  * Added functions to display large LCD font.
  * 
  */
@@ -495,6 +495,123 @@ static void DISP_LCD_CharDP(uint8_t x, uint8_t page, char c)
 }
 
 
+void DISP_LCD(uint8_t x,    // x in pixels
+              uint8_t page, // 0..7, but usually either 0 or 4
+              int16_t n,    // number to display
+              uint8_t w,    // width, in digits, not counting the DP
+              uint8_t d)    // number of decimal places
+{
+    uint16_t value;
+    uint16_t divisor;
+    uint8_t digits;
+    uint8_t i;
+    uint8_t pos;
+    uint8_t digit;
+    uint8_t decimal_pos;
+
+    value = (uint16_t)n;
+
+    /*
+     * Find the number of digits in the value.
+     */
+    if (value == 0)
+    {
+        digits = 1;
+    }
+    else
+    {
+        digits = 0;
+
+        while (value != 0)
+        {
+            digits++;
+            value /= 10;
+        }
+    }
+
+    /*
+     * Limit the number to the requested width.
+     */
+    if (digits > w)
+    {
+        digits = w;
+    }
+
+    /*
+     * Restore the value after counting its digits.
+     */
+    value = (uint16_t)n;
+
+    /* calculate and range validate the dp position */
+    if (d < digits)
+    {
+      decimal_pos = digits - d - 1;
+    }
+    else
+    {
+      decimal_pos = 255;
+    }
+    
+    /*
+     * Find the first character position.
+     * The number is right-aligned.
+     */
+    pos = w - digits;
+
+    /*
+     * Divisor used to extract the leading digit.
+     */
+    divisor = 1;
+
+    for (i = 1; i < digits; i++)
+    {
+        divisor *= 10;
+    }
+
+    for (i = 0; i < w; i++)
+    {
+        if (i < pos)
+        {
+            /*
+             * Leading positions are blank.
+             */
+            DISP_LCD_Char(x + (i * LCD_WIDTH),
+                          page,
+                          ' ');
+        }
+        else
+        {
+            digit = (uint8_t)(value / divisor);
+            value %= divisor;
+
+            /*
+             * The decimal point is always attached to
+             * the units digit.
+             *
+             * Units is d digits from the right.
+             */
+            if ((i - pos) == decimal_pos)
+            {
+                DISP_LCD_CharDP(x + (i * LCD_WIDTH),
+                                page,
+                                (char)('0' + digit));
+            }
+            else
+            {
+                DISP_LCD_Char(x + (i * LCD_WIDTH),
+                              page,
+                              (char)('0' + digit));
+            }
+
+            if (divisor > 1)
+            {
+                divisor /= 10;
+            }
+        }
+    }
+} // DISP_LCD
+
+
 static void DISP_LCD_Str(uint8_t x, uint8_t page, const char *str)
 {
     uint8_t i;
@@ -525,9 +642,9 @@ static void DISP_LCD_Str(uint8_t x, uint8_t page, const char *str)
         }
         else
         {
-            DISP_LCD_Char(x + (pos * LCD_WIDTH),
+            x + (pos * LCD_WIDTH),
                           page,
-                          str[i]);
+                          str[i];
 
             pos++;
         }
@@ -546,83 +663,6 @@ static void DISP_LCD_Str(uint8_t x, uint8_t page, const char *str)
 
 } // DISP_LCD_Str
 
-
-void DISP_LCD_PWR(uint8_t x, uint8_t page, int16_t deciWatt)
-{
-    char str[6];
-    uint16_t watts;
-
-    if (deciWatt < 100)
-    {
-        str[0] = (char)('0' + (deciWatt / 10));
-        str[1] = '.';
-        str[2] = (char)('0' + (deciWatt % 10));
-        str[3] = 0;
-    }
-    else
-    {
-        watts = (uint16_t)(deciWatt / 10);
-
-        if (watts > 999)
-        {
-            watts = 999;
-        }
-
-        str[0] = (char)('0' + (watts / 100));
-        str[1] = (char)('0' + ((watts / 10) % 10));
-        str[2] = (char)('0' + (watts % 10));
-
-        if (str[0] == '0')
-        {
-            str[0] = ' ';
-        }
-
-        if (str[0] == ' ')
-        {
-            if (str[1] == '0')
-            {
-                str[1] = ' ';
-            }
-        }
-
-        str[3] = 0;
-    }
-
-    DISP_LCD_Str(x, page, str);
-}
-
-
-void DISP_LCD_SWR(uint8_t x, uint8_t page, int16_t centiSWR)
-{
-    char str[6];
-    uint16_t value;
-
-    if (centiSWR < 100)
-    {
-        str[0] = '0';
-        str[1] = '.';
-        str[2] = '0';
-        str[3] = '0';
-        str[4] = 0;
-    }
-    else
-    {
-        value = (uint16_t)centiSWR;
-
-        if (value > 999)
-        {
-            value = 999;
-        }
-
-        str[0] = (char)('0' + (value / 100));
-        str[1] = '.';
-        str[2] = (char)('0' + ((value / 10) % 10));
-        str[3] = (char)('0' + (value % 10));
-        str[4] = 0;
-    }
-
-    DISP_LCD_Str(x, page, str);
-}
 
 /**
  * Show power as x.xW when < 10W and xxW or xxxW if higher
