@@ -41,6 +41,10 @@
  * Added large display selection menu. Tweaked the "Rotate" display menu. 
  * Jiggled the menus around a little.
  * 
+ * Modified 04-Oct-2026 2E0UMK
+ * Added a little tweak to display A or B in LCD mode to indicate if Autotune
+ * or Bypass is enabled.
+ * 
  */
 
 #include "defines.h"
@@ -294,11 +298,18 @@ static void MENU_Main_Update(void)
 {
   if (global.flags & FLAG_DISPLAY_LARGE_MASK)
   {
-      DISP_LCD_PWR(56, 0, global.PWR);
-      DISP_LCD_SWR(56, 4, global.SWR);
-      return;
+    DISP_LCD(40, 0, global.PWR, 4, 1);
+    DISP_LCD(56, 4, global.SWR, 4, 2);
+     
+    if (global.bypass_enable == TRUE)
+    { DISP_Str(0, 3, "B", 1); } 
+    if (global.tune_auto_enable == TRUE)
+    { DISP_Str(1, 3, "A", 1); } 
+
+    return;
   }
 
+  // implicit else ...
   uint8_t c_row = 2;
   uint8_t l_row = 3;
  
