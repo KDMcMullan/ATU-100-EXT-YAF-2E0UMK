@@ -1,3 +1,4 @@
+
 /* 
  * File:   fontLCD.h
  * Author: Ken McMullan, 2E0UMK
@@ -11,6 +12,9 @@
  * nonzero lines are included along with a line index, so this occupies 177
  * bytes instead of 512, at a small CPU overhead to build the character with
  * its empty lines.
+ * 
+ * Modified 04-Oct-2026 2E0UMK
+ * Slightly larger digits and larger decimal point.
  * 
  */
 
@@ -38,117 +42,58 @@ typedef struct
 
 
 /* Segment A */
-
 static const LCDRow LCD_A[] = // 9 bytes instead of 64
 {
-    { 1, 0x0FFC },
-    { 2, 0x07F8 },
-    { 3, 0x03F0 }
+  { 1, 0x1FF8 }, { 2, 0x0FF0 }, { 3, 0x07E0 }
 };
 
 
 /* Segment B */
-
 static const LCDRow LCD_B[] = // 36 bytes instead of 64
 {
-    { 2, 0x0002 },
-    { 3, 0x0006 },
-    { 4, 0x000E },
-    { 5, 0x000E },
-    { 6, 0x000E },
-    { 7, 0x000E },
-    { 8, 0x001E },
-    { 9, 0x001C },
-    {10, 0x001C },
-    {11, 0x001C },
-    {12, 0x000C },
-    {13, 0x0004 }
+  { 2, 0x0002 }, { 3, 0x0006 }, { 4, 0x000E }, { 5, 0x000E }, { 6, 0x000E }, { 7, 0x000E }, { 8, 0x000E }, { 9, 0x001E }, { 10, 0x001C }, { 11, 0x001C }, { 12, 0x001C }, { 13, 0x000C }, { 14, 0x0004 }
 };
 
 
 /* Segment C */
-
 static const LCDRow LCD_C[] = // 36 bytes instead of 64
 {
-    {15, 0x0008 },
-    {16, 0x0018 },
-    {17, 0x0038 },
-    {18, 0x0038 },
-    {19, 0x0038 },
-    {20, 0x0038 },
-    {21, 0x0078 },
-    {22, 0x0070 },
-    {23, 0x0070 },
-    {24, 0x0070 },
-    {25, 0x0030 },
-    {26, 0x0010 }
+  { 17, 0x0004 }, { 18, 0x000C }, { 19, 0x001C }, { 20, 0x001C }, { 21, 0x001C }, { 22, 0x003C }, { 23, 0x0038 }, { 24, 0x0038 }, { 25, 0x0038 }, { 26, 0x0018 }, { 27, 0x0008 }
 };
 
 
 /* Segment D */
-
 static const LCDRow LCD_D[] = // 9 bytes instead of 64
 {
-    {25, 0x1F80 },
-    {26, 0x3FC0 },
-    {27, 0x7FE0 }
+  { 27, 0x1FC0 }, { 28, 0x3FE0 }, { 29, 0x7FF0 }
 };
 
 
 /* Segment E */
-
 static const LCDRow LCD_E[] = // 36 bytes instead of 64
 {
-    {15, 0x4000 },
-    {16, 0x6000 },
-    {17, 0x7000 },
-    {18, 0x7000 },
-    {19, 0x7000 },
-    {20, 0xF000 },
-    {21, 0xE000 },
-    {22, 0xE000 },
-    {23, 0xE000 },
-    {24, 0xE000 },
-    {25, 0xC000 },
-    {26, 0x8000 }
+  { 16, 0x4000 }, { 17, 0x6000 }, { 18, 0x7000 }, { 19, 0x7000 }, { 20, 0x7000 }, { 21, 0xF000 }, { 22, 0xE000 }, { 23, 0xE000 }, { 24, 0xE000 }, { 25, 0xE000 }, { 26, 0xC000 }, { 27, 0x8000 }
 };
 
 
 /* Segment F */
-
 static const LCDRow LCD_F[] = // 36 bytes instead of 64
 {
-    { 2, 0x1000 },
-    { 3, 0x1800 },
-    { 4, 0x1C00 },
-    { 5, 0x1C00 },
-    { 6, 0x1C00 },
-    { 7, 0x3C00 },
-    { 8, 0x3800 },
-    { 9, 0x3800 },
-    {10, 0x3800 },
-    {11, 0x3800 },
-    {12, 0x3000 },
-    {13, 0x2000 }
+  { 3, 0x2000 }, { 4, 0x3000 }, { 5, 0x3800 }, { 6, 0x3800 }, { 7, 0x3800 }, { 8, 0x7800 }, { 9, 0x7000 }, { 10, 0x7000 }, { 11, 0x7000 }, { 12, 0x6000 }, { 13, 0x4000 }
 };
 
 
 /* Segment G */
-
 static const LCDRow LCD_G[] = // 9 bytes instead of 64
 {
-    {13, 0x0FF0 },
-    {14, 0x1FF0 },
-    {15, 0x1FE0 }
+  { 14, 0x1FE0 }, { 15, 0x1FF0 }, { 16, 0x0FF0 }
 };
 
 
 /* Decimal point */
-
 static const LCDRow LCD_DP[] = // 6 bytes instead of 64
 {
-    {26, 0x0006 },
-    {27, 0x0006 }
+  { 28, 0x0007 }, { 29, 0x0007 }, { 30, 0x0007 }
 };
 
 
