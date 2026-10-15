@@ -16,6 +16,10 @@
  * Modified 04-Oct-2026 2E0UMK
  * Added functions to display large LCD font.
  * 
+ * Modified 15-Oct-2026 2E0UMK
+ * Tidy up of redundant code, and comments.
+ * Reworked DISP_LCD to centre on the units.
+ * 
  */
 
 #include "defines.h"
@@ -495,173 +499,186 @@ static void DISP_LCD_CharDP(uint8_t x, uint8_t page, char c)
 }
 
 
-void DISP_LCD(uint8_t x,    // x in pixels
-              uint8_t page, // 0..7, but usually either 0 or 4
-              int16_t n,    // number to display
-              uint8_t w,    // width, in digits, not counting the DP
-              uint8_t d)    // number of decimal places
+void DISP_LCD(uint8_t x,      // x-coordinate of units digit, in pixels
+              uint8_t page,   // y in pages, range 0..7, usually 0 or 4
+              int16_t n,      // input value
+              uint8_t scale,  // decimal scaling: 0 = /1, 1 = /10, 2 = /100
+              uint8_t d,      // number of decimal places to display
+              uint8_t maxint) // maximum digits left of decimal point
 {
-    uint16_t value;
-    uint16_t divisor;
+    uint32_t magnitude;
+    uint32_t divisor;
+    uint32_t integer_part;
+    uint32_t fraction_part;
+    uint32_t scale_factor;
     uint8_t digits;
     uint8_t i;
-    uint8_t pos;
     uint8_t digit;
-    uint8_t decimal_pos;
+    uint8_t negative;
+    int32_t signed_value;
+    int32_t char_x;
 
-    value = (uint16_t)n;
+    if (page > 4)
+    {
+        return;
+    }
 
     /*
-     * Find the number of digits in the value.
+     * Clear the integer field to the left of the units digit.
+     * Also clear the character position where a minus sign
+     * could have been displayed.
      */
-    if (value == 0)
+    for (i = 1; i < maxint; i++)
     {
-        digits = 1;
-    }
-    else
-    {
-        digits = 0;
+        char_x = (int32_t)x - ((int32_t)i * LCD_WIDTH);
 
-        while (value != 0)
+        if (char_x >= 0 &&
+            char_x <= (int32_t)(RES_X - LCD_WIDTH))
         {
-            digits++;
-            value /= 10;
+            DISP_LCD_Char((uint8_t)char_x, page, ' ');
         }
     }
 
-    /*
-     * Limit the number to the requested width.
-     */
-    if (digits > w)
+    char_x = (int32_t)x - ((int32_t)maxint * LCD_WIDTH);
+
+    if (char_x >= 0 &&
+        char_x <= (int32_t)(RES_X - LCD_WIDTH))
     {
-        digits = w;
+        DISP_LCD_Char((uint8_t)char_x, page, ' ');
     }
 
     /*
-     * Restore the value after counting its digits.
+     * Convert to magnitude safely, including n == -32768.
      */
-    value = (uint16_t)n;
+    signed_value = n;
+    negative = (signed_value < 0);
 
-    /* calculate and range validate the dp position */
-    if (d < digits)
+    if (negative)
     {
-      decimal_pos = digits - d - 1;
+        signed_value = -signed_value;
     }
-    else
-    {
-      decimal_pos = 255;
-    }
-    
-    /*
-     * Find the first character position.
-     * The number is right-aligned.
-     */
-    pos = w - digits;
+
+    magnitude = (uint32_t)signed_value;
 
     /*
-     * Divisor used to extract the leading digit.
+     * Calculate 10^scale.
      */
+    scale_factor = 1;
+
+    for (i = 0; i < scale; i++)
+    {
+        scale_factor *= 10UL;
+    }
+
+    /*
+     * Split the input into integer and fractional portions.
+     */
+    integer_part = magnitude / scale_factor;
+    fraction_part = magnitude % scale_factor;
+
+    /*
+     * Count the integer digits. Zero must occupy one digit.
+     */
+    digits = 1;
     divisor = 1;
 
-    for (i = 1; i < digits; i++)
+    while (integer_part >= 10UL)
     {
-        divisor *= 10;
+        integer_part /= 10UL;
+        digits++;
+        divisor *= 10UL;
     }
 
-    for (i = 0; i < w; i++)
-    {
-        if (i < pos)
-        {
-            /*
-             * Leading positions are blank.
-             */
-            DISP_LCD_Char(x + (i * LCD_WIDTH),
-                          page,
-                          ' ');
-        }
-        else
-        {
-            digit = (uint8_t)(value / divisor);
-            value %= divisor;
+    /*
+     * Restore the integer portion for digit extraction.
+     */
+    integer_part = magnitude / scale_factor;
 
-            /*
-             * The decimal point is always attached to
-             * the units digit.
-             *
-             * Units is d digits from the right.
-             */
-            if ((i - pos) == decimal_pos)
+    /*
+     * Start with the most significant integer digit.
+     */
+    char_x = (int32_t)x - ((int32_t)(digits - 1) * LCD_WIDTH);
+
+    for (i = 0; i < digits; i++)
+    {
+        digit = (uint8_t)(integer_part / divisor);
+        integer_part %= divisor;
+
+        if (char_x >= 0 &&
+            char_x <= (int32_t)(RES_X - LCD_WIDTH))
+        {
+            if (i == (digits - 1))
             {
-                DISP_LCD_CharDP(x + (i * LCD_WIDTH),
+                DISP_LCD_CharDP((uint8_t)char_x,
                                 page,
                                 (char)('0' + digit));
             }
             else
             {
-                DISP_LCD_Char(x + (i * LCD_WIDTH),
+                DISP_LCD_Char((uint8_t)char_x,
                               page,
                               (char)('0' + digit));
             }
+        }
 
-            if (divisor > 1)
+        char_x += LCD_WIDTH;
+
+        if (divisor > 1UL)
+        {
+            divisor /= 10UL;
+        }
+    }
+
+    /*
+     * Display fractional digits to the right of the units digit.
+     * Missing decimal places are zero-padded.
+     */
+    for (i = 0; i < d; i++)
+    {
+        char_x = (int32_t)x + ((int32_t)(i + 1) * LCD_WIDTH);
+
+        if (char_x >= 0 &&
+            char_x <= (int32_t)(RES_X - LCD_WIDTH))
+        {
+            uint32_t fraction_divisor = 1UL;
+            uint8_t j;
+
+            if (i < scale)
             {
-                divisor /= 10;
+                for (j = 0; j < (uint8_t)(scale - i - 1); j++)
+                {
+                    fraction_divisor *= 10UL;
+                }
+
+                digit = (uint8_t)(fraction_part / fraction_divisor);
+                fraction_part %= fraction_divisor;
             }
+            else
+            {
+                digit = 0;
+            }
+
+            DISP_LCD_Char((uint8_t)char_x,
+                          page,
+                          (char)('0' + digit));
+        }
+    }
+
+    /*
+     * Display a minus sign immediately to the left of the number.
+     * Omit it if there is insufficient space.
+     */
+    if (negative)
+    {
+        char_x = (int32_t)x - ((int32_t)digits * LCD_WIDTH);
+
+        if (char_x >= 0 &&
+            char_x <= (int32_t)(RES_X - LCD_WIDTH))
+        {
+            DISP_LCD_Char((uint8_t)char_x, page, '-');
         }
     }
 } // DISP_LCD
-
-
-static void DISP_LCD_Str(uint8_t x, uint8_t page, const char *str)
-{
-    uint8_t i;
-    uint8_t pos;
-
-    /*
-     * Always write five character positions.
-     * A decimal point is overlaid on the preceding character
-     * and does not consume a character position.
-     */
-    pos = 0;
-
-    for (i = 0; i < LCD_MAX_CHARS; i++)
-    {
-        if (str[i] == 0)
-        {
-            break;
-        }
-
-        if (str[i] == '.')
-        {
-            if (pos > 0)
-            {
-                DISP_LCD_CharDP(x + ((pos - 1) * LCD_WIDTH),
-                                page,
-                                str[pos - 1]);
-            }
-        }
-        else
-        {
-            x + (pos * LCD_WIDTH),
-                          page,
-                          str[i];
-
-            pos++;
-        }
-    }
-
-    /*
-     * Clear any remaining character positions.
-     */
-    while (pos < LCD_MAX_CHARS)
-    {
-        DISP_LCD_Char(x + (pos * LCD_WIDTH),
-                      page,
-                      ' ');
-        pos++;
-    }
-
-} // DISP_LCD_Str
 
 
 /**
@@ -708,23 +725,6 @@ void DISP_SWR(uint8_t col, uint8_t row, int16_t centiSWR, uint8_t invert)
   }
   DISP_Str(col, row, str, invert);
 }
-/*
-void DISP_DrawVLine(uint8_t x, uint8_t state)
-{
-    if (x >= RES_X) return; // Out of bounds safety check
-
-    uint8_t fill_byte = state ? 0xFF : 0x00;
-
-    // SSD1306 page addressing: 8 pages (0..7), each 8 pixels tall.
-    // Stream fill_byte to column 'x' across all 8 pages for a 64-pixel vertical bar.
-    for (uint8_t page = 0; page <= 7; page++)
-    {
-        DISP_DataAddress(page, x);
-        I2C_Write(fill_byte);
-        I2C_Stop();
-    }
-}
-*/
 
 /**
  * @brief True streamed VLine drawing with zero repeated Start sequences.
