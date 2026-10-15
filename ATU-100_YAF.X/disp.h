@@ -9,7 +9,7 @@
  * Modified 12-Sep-2026 2E0UMK
  * Added functions for OLED screensaver.
  * 
- * Modified 29-Sep-2026 2E0UMK
+ * Modified 15-Oct-2026 2E0UMK
  * Added prototypes for displaying large fonts.
  * 
  */
@@ -36,8 +36,7 @@ void DISP_Clr(void);
 void DISP_DrawVLine(uint8_t x, uint8_t state);
 void DISP_MoveVLine(uint8_t old_col, uint8_t new_col);
 void DISP_RenderScreenSaver(void);
-void DISP_LCD_PWR(uint8_t x, uint8_t page, int16_t deciWatt);
-void DISP_LCD_SWR(uint8_t x, uint8_t page, int16_t centiSWR);
+void DISP_LCD(uint8_t x, uint8_t page, int16_t n, uint8_t scale, uint8_t d, uint8_t maxint);
 
 #ifdef	__cplusplus
 }
