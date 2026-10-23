@@ -298,9 +298,13 @@ static void MENU_Main_Update(void)
 {
   if (global.flags & FLAG_DISPLAY_LARGE_MASK)
   {
-    DISP_LCD(40, 0, global.PWR, 4, 1);
-    DISP_LCD(56, 4, global.SWR, 4, 2);
-     
+      
+    // 128 pixel wide display, 16 pixels per character, 2 decimal places,
+    // so the units is displayed at 127-16*3 = 80 
+      
+    DISP_LCD(79, 0, global.PWR, 1, 1, 3);
+    DISP_LCD(79, 4, global.SWR, 2, 2, 2);     
+    
     if (global.bypass_enable == TRUE)
     { DISP_Str(0, 3, "B", 1); } 
     if (global.tune_auto_enable == TRUE)
