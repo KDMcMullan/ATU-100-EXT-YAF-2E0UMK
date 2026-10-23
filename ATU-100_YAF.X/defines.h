@@ -23,8 +23,11 @@
  * 
  * Modified 12-Sep-2026 2E0UMK
  * Added extra bits (and removed bits) for the new sleep delay routines.
- * Added ccomments describing the reverse-engineered cal variables.
+ * Added comments describing the reverse-engineered cal variables.
  * Added a 2us delay macro to speed up display refresh.
+ * 
+ * Modified 29-Sep-2026 2E0UMK
+ * Added a new bit to indicate that the large font is to be employed.
  * 
  */
 
@@ -168,16 +171,15 @@ extern "C"
 #define FLAG_DEBUG             1 // show debug info
 #define FLAG_WAKE_ON_RF        2 // 1 = Wake on RF, 0 = Button only (DigiMode)
 #define FLAG_RELAY_SAVE        3 // 1 = Drop relays on sleep (QRP only), 0 = Keep match
-#define FLAG_4                 4 // formery the screen saver enabled bit
+#define FLAG_DISPLAY_LARGE     4 // large PWR/SWR display
 #define FLAG_5                 5
 #define FLAG_6                 6
 #define FLAG_7                 7
-
 #define FLAG_DISPLAY_ROTATE_MASK  (1 << FLAG_DISPLAY_ROTATE)
 #define FLAG_DEBUG_MASK           (1 << FLAG_DEBUG)
 #define FLAG_WAKE_ON_RF_MASK      (1 << FLAG_WAKE_ON_RF)
 #define FLAG_RELAY_SAVE_MASK      (1 << FLAG_RELAY_SAVE)
-//#define FLAG_4_MASK               (1 << FLAG_4)
+#define FLAG_DISPLAY_LARGE_MASK   (1 << FLAG_DISPLAY_LARGE)
 
 
 //----------------------------------------------------------------------    
@@ -264,7 +266,7 @@ global_t extern global;
 
 const char str_ATU100EXT[] = "ATU-100";
 const char str_YAF[]       = "EXT-YAF";
-const char str_Version[]   =  "V0.69.0"; // 2E0UMK
+const char str_Version[]   =  "V0.69.4"; // 2E0UMK - LCD complete
 const char str_YetAnother[] = "YetAnother";
 const char str_Firmware[] = "Firmware";
 const char str_Hardware[] = "Hardware";
@@ -278,6 +280,8 @@ const char str_2E0UMK[] ="2E0UMK";
 
 const char str_SWR[]   =  "SWR";
 const char str_PWR[]   =  "PWR";
+
+const char str_Large[] = "Large";
 
 const char str_L_[]   =  "L=";
 const char str_C_[]   =  "C=";
