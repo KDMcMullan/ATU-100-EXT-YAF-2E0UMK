@@ -664,6 +664,20 @@ void DISP_LCD(uint8_t x,      // x-coordinate of units digit, in pixels
         }
     }
 
+    /*
+     * Display a minus sign immediately to the left of the number.
+     * Omit it if there is insufficient space.
+     */
+    if (negative)
+    {
+        char_x = (int32_t)x - ((int32_t)digits * LCD_WIDTH);
+
+        if (char_x >= 0 &&
+            char_x <= (int32_t)(RES_X - LCD_WIDTH))
+        {
+            DISP_LCD_Char((uint8_t)char_x, page, '-');
+        }
+    }
 } // DISP_LCD
 
 
