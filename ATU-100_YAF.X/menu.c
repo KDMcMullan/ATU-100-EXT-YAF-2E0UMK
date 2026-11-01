@@ -45,6 +45,9 @@
  * Added a little tweak to display A or B in LCD mode to indicate if Autotune
  * or Bypass is enabled.
  * 
+ * Modified 30-Oct-2026 2E0UMK
+ * Modified for additional menu item to select hardware type.
+ * 
  */
 
 #include "defines.h"
@@ -93,7 +96,7 @@ static union
   {
     uint8_t cursor;
     uint8_t enable;
-  } menu_item_bool_t;
+  } menu_item_bool_t; // NB shared between things which only need these fields
 
   struct
   {
@@ -157,7 +160,6 @@ static union
     int16_t cal_point[2];
     int16_t adc_value[2];
     int16_t adc_value_old;
-
   } cal;
 
   struct
@@ -171,7 +173,7 @@ static union
     uint8_t cursor;
     uint8_t save_mode;
     uint8_t top;
-  } memory;
+  } memory; // NB shared between tuning memory selector and hardware selector
   
   struct
   {
@@ -180,15 +182,14 @@ static union
     uint8_t button_repeat_delay;
     tunemem_t tunemem;
   } nameedit;        
-          
+
   struct
   {
     uint8_t mem_index;
     uint8_t cursor;
     tunemem_t tunemem;
-    uint8_t str_terminate; //must stay direkt behind memory
+    uint8_t str_terminate; //must stay direct behind memory
   } startupsave;    
-  
   
 } MENU_var;
 
@@ -209,9 +210,6 @@ static void MENU_Sub_Update(void);
 
 static void MENU_Reset_Init(void);
 static void MENU_Bypass_Init(void);
-
-static void MENU_TParam_Init(void);
-static void MENU_TParam_Run(void);
 
 static void MENU_TParam_Init(void);
 static void MENU_TParam_Run(void);
@@ -243,6 +241,10 @@ static void MENU_RelTest_Run(void);
 
 static void MENU_Tune_Init(void);
 static void MENU_Tune_Run(void);
+
+static void MENU_Hardware_Init(void);
+static void MENU_Hardware_Run(void);
+static void MENU_Hardware_Update(void);
 
 static void MENU_MemorySave_Init(void);
 static void MENU_MemoryLoad_Init(void);
@@ -281,16 +283,18 @@ const menu_t menuCal      ={str_MENU_Cal, MENU_CalPWR_Init, MENU_CalPWR_Run};
 
 const menu_t menuDebug = {str_MENU_Debug, MENU_Debug_Init, MENU_Debug_Run};
 
+#define HARDWARE_PROFILE_ITEMS  2 // Default and QRP for now
+
+const menu_t menuHardware = {str_Hardware, MENU_Hardware_Init, MENU_Hardware_Run};
 
 #define MENU_SUBTOP_ITEMS    6
 const menu_t* ptrSubTopMenu[MENU_SUBTOP_ITEMS] = { &menuLoad, &menuBypass, &menuSubSetup, &menuSave, &menuReset, &menuAbout};
 
-#define MENU_SUBSETUP_ITEMS    6
-const menu_t* ptrSubSetupMenu[MENU_SUBSETUP_ITEMS] = { &menuSleep, &menuTParam, &menuDisplay, &menuCal, &menuRelTest, &menuDebug };
+#define MENU_SUBSETUP_ITEMS    7
+const menu_t* ptrSubSetupMenu[MENU_SUBSETUP_ITEMS] = { &menuSleep, &menuTParam, &menuDisplay, &menuCal, &menuHardware, &menuRelTest, &menuDebug };
 const menu_t menuTune     ={NULL, MENU_Tune_Init, MENU_Tune_Run};
 const menu_t menuNameEdit ={NULL, MENU_NameEdit_Init, MENU_NameEdit_Run};
 const menu_t menuStartupSave ={NULL, MENU_StartupSave_Init, MENU_StartupSave_Run};
-
 
 //-- MENU_MAIN -------------------------------------------------------------------------------------------------
 
@@ -302,9 +306,14 @@ static void MENU_Main_Update(void)
     // 128 pixel wide display, 16 pixels per character, 2 decimal places,
     // so the units is displayed at 127-16*3 = 80 
       
-    DISP_LCD(79, 0, global.PWR, 1, 1, 3);
+    DISP_LCD(79, 0, global.PWR, 1, 1, 3); // scaling, dp, integer part
     DISP_LCD(79, 4, global.SWR, 2, 2, 2);     
+
+    // Below is a temporary hack to stop the "R" in "PWR" getting partially
+    // over-written by the erasure of the leftmost LCD digit.
+    DISP_Str(0, 0, str_PWR, 0);
     
+    // Display A and / or B for Auto / Bypass
     if (global.bypass_enable == TRUE)
     { DISP_Str(0, 3, "B", 1); } 
     if (global.tune_auto_enable == TRUE)
@@ -331,7 +340,8 @@ static void MENU_Main_Update(void)
 
   if (global.bypass_enable == TRUE)
   {
-    DISP_Str(0, 3, str_Bypass, 1);
+    UTILI_Int2Str(MENU_var.cal.step, str, sizeof(str));
+    DISP_Str(0, 3, str_MENU_Bypass, 1);
   } 
   else
   {
@@ -361,7 +371,7 @@ static void MENU_Main_Update(void)
   //Display AUTO 
   if((global.tune_auto_enable == TRUE) && (global.bypass_enable != TRUE))
   {
-    p_str = str_AUTO;
+    p_str = str_Auto;
     for(uint8_t i=0; i<4; i++)
     {  
      DISP_Char(9, i, p_str[i], 0);
@@ -392,6 +402,7 @@ static void MENU_Main_Init(void)
   MENU_var.main.sleep_timer = 0;
   MENU_var.main.relais_backup = UTILI_Get_LC_Relays();
 }
+
 
 static void MENU_Main_Wakeup(void)
 {
@@ -602,6 +613,7 @@ static void MENU_Tune_Run(void)
 }
 
 //-- Menu_TParam  --------------------------------------------------------------------------------------------------
+
 static void MENU_TParam_Update(void)
 {
   uint8_t cursor = MENU_var.tparam.cursor;
@@ -713,7 +725,143 @@ static void MENU_TParam_Run(void)
 }
 
 
+//-- Menu Hardware --------------------------------------------------------------------------------------------------
+
+static void MENU_Hardware_Update(void)
+{
+    uint8_t index;
+    const char *profile_name;
+
+    // Display three entries, starting at MENU_var.memory.top
+    for (uint8_t i = 0; i < 3; i++)
+    {
+        index = MENU_var.memory.top + i;
+
+        if (index < HARDWARE_PROFILE_ITEMS)
+        {
+
+            switch (index)
+            {
+                case 0:
+                    profile_name = str_Standard;
+                    break;
+
+                case 1:
+                    profile_name = "QRP (5T)";
+                    break;
+
+                default:
+                    profile_name = str_SpaceLine;
+                    break;
+            }
+
+            DISP_Str(0, i + 1, profile_name, (index == MENU_var.memory.cursor));
+        }
+        else
+        {
+            // Clear unused rows
+            DISP_Str(0, i + 1, str_SpaceLine, 0);
+        }
+    }
+} // MENU_Hardware_Update
+
+
+static void MENU_Hardware_Init(void)
+{
+    DISP_Clr();
+    DISP_Str(0, 0, str_Hardware, 0);
+
+    MENU_var.memory.cursor = 0;
+    MENU_var.memory.top = 0;
+    MENU_var.memory.timeout = 0;
+
+    BUTTON_Reset();
+
+    MENU_Hardware_Update();
+} // MENU_Hardware_Init
+
+
+static void MENU_Hardware_Run(void)
+{
+    // Timeout
+    MENU_var.memory.timeout++;
+
+    if (MENU_var.memory.timeout >= MENU_MEMORY_TIMEOUT)
+    {
+        MENU_Init();
+        return;
+    }
+
+    // Short press: move selection down
+    if (BUTTON_count == BUTTON_RELEASED)
+    {
+        MENU_var.memory.timeout = 0;
+
+        if ((MENU_var.memory.cursor + 1) < HARDWARE_PROFILE_ITEMS)
+        {
+            MENU_var.memory.cursor++;
+
+            // Scroll when selection moves beyond the third visible row
+            if (MENU_var.memory.cursor >= (MENU_var.memory.top + 3))
+            {
+                MENU_var.memory.top++;
+            }
+        }
+        else
+        {
+            // Wrap around to the first profile
+            MENU_var.memory.cursor = 0;
+            MENU_var.memory.top = 0;
+        }
+
+        MENU_Hardware_Update();
+    }
+
+    // Long press: select hardware profile
+    if (BUTTON_count == BUTTON_LONG_PRESSED)
+    {
+        if (MENU_var.memory.cursor == 0)
+        {
+            // Standard hardware calibration
+            global.cal_point[0] = 50;
+            global.cal_point[1] = 250;
+            global.cal_offset = DEF_CAL_OFFSET_STD;
+            global.cal_gain = DEF_CAL_GAIN_STD;
+        }
+        else if (MENU_var.memory.cursor == 1)
+        {
+            // QRP hardware calibration (5-turn coupler)
+            global.cal_point[0] = 10;
+            global.cal_point[1] = 30;
+            global.cal_offset = DEF_CAL_OFFSET_QRP;
+            global.cal_gain = DEF_CAL_GAIN_QRP;
+        }
+
+        // Save calibration settings to EEPROM
+        EEPROM_Write((uint8_t)&ee_cal_point_0,
+                     &global.cal_point[0],
+                     sizeof(ee_cal_point_0));
+
+        EEPROM_Write((uint8_t)&ee_cal_point_1,
+                     &global.cal_point[1],
+                     sizeof(ee_cal_point_1));
+
+        EEPROM_Write((uint8_t)&ee_cal_offset,
+                     &global.cal_offset,
+                     sizeof(ee_cal_offset));
+
+        EEPROM_Write((uint8_t)&ee_cal_gain,
+                     &global.cal_gain,
+                     sizeof(ee_cal_gain));
+
+        MENU_Init();
+        return;
+    }
+} // MENU_Hardware_Run
+
+
 //-- Menu_Sleep --------------------------------------------------------------------------------------------------
+
 static void MENU_Sleep_Update(void)
 {
   uint8_t cursor = MENU_var.sleep.cursor;
@@ -751,7 +899,7 @@ static void MENU_Sleep_Init(void)
   DISP_Str(0, 2, str_RlySave,0);
 
   MENU_var.sleep.cursor     = 0;
-  MENU_var.sleep.delay_sec  = global.sleep_delay_sec;
+  MENU_var.sleep.delay_sec  = global.sleep_enable ? global.sleep_delay_sec : 0;
   MENU_var.sleep.wake_rf    = (global.flags & FLAG_WAKE_ON_RF_MASK) ? 1 : 0;
   MENU_var.sleep.relay_save = (global.flags & FLAG_RELAY_SAVE_MASK) ? 1 : 0;
 
@@ -1306,42 +1454,44 @@ static void MENU_CalPWR_Run(void)
     MENU_CalPWR_Update();
   }
 
-
   if (BUTTON_count == BUTTON_LONG_PRESSED)
   {
     BUTTON_count -= BUTTON_LONG_REPEAT_DELAY_MAX;
 
-
-    if ((MENU_var.cal.cursor == 0)&&(MENU_var.cal.step <=1)) //cursor at "Power"
+    if ((MENU_var.cal.cursor == 0)&&(MENU_var.cal.step <=1)) // cursor at "Power" and cal step 0 of 0..3
     {
-      int16_t value = MENU_var.cal.cal_point[MENU_var.cal.step];
-
-      if (value < 100) value += 5; // 0.5W increments below 10W
-      else value += 50;            // otherwise 5W increments
-
-      if (MENU_var.cal.step == 0)
-      {
-        if (value > CAL_STEP0_MAX) value = 0;
-      } 
+      // increase by 0.5W if less than 10W, otherwise increase by 5W
+      if (MENU_var.cal.cal_point[MENU_var.cal.step] < 100)
+        MENU_var.cal.cal_point[MENU_var.cal.step] += 5;
       else
+        MENU_var.cal.cal_point[MENU_var.cal.step] += 50;
+
+      if (MENU_var.cal.step == 0) // only for step 0 of 0..3
+      {
+        // if the menu power value > maximum for step 0, set it to zero
+        if (MENU_var.cal.cal_point[MENU_var.cal.step] > CAL_STEP0_MAX)
+        MENU_var.cal.cal_point[MENU_var.cal.step] = 0;
+      } 
+      else // only for step 1..3 
       {
         // Value in step 1 could not be smaller than in step 0
-        if (value > CAL_STEP1_MAX) value = MENU_var.cal.cal_point[0];
+        if (MENU_var.cal.cal_point[MENU_var.cal.step] > CAL_STEP1_MAX)
+          MENU_var.cal.cal_point[MENU_var.cal.step] = MENU_var.cal.cal_point[0];
       }
-
-      MENU_var.cal.cal_point[MENU_var.cal.step] = value;
-      
-      MENU_CalPWR_Update();
-
-    } 
-    else //cursor at "ESC"
-    {
-      MENU_Init();
-      return;
+      // debug
+//      UTILI_Int2Str(MENU_var.cal.step, str, 2);
+//      DISP_Str(0, 3, str, 0);
     }
-  }
+    else // cursor at "Power" and cal step 0
+    {
+        MENU_Init();
+        return;
+    }
 
-  //ADC 
+    MENU_CalPWR_Update();
+  }  
+
+  // ADC 
   if (MENU_var.cal.step <= 1) //step 0 & 1
   {
     if (global.adc_f_mV > ADC_CAL_START)
@@ -1481,8 +1631,9 @@ static void MENU_Sub_Update(void)
   
   for(uint8_t i = 0; i < 4; i++)
   {
-      DISP_Str(DISP_COL_CENTER, i, MENU_var.sub.ptrMenu[pos]->title, (pos == MENU_var.sub.cursor));
-      pos++;
+//    DISP_Str(DISP_COL_CENTER, i, MENU_var.sub.ptrMenu[pos]->title, (pos == MENU_var.sub.cursor));
+    DISP_Str(0, i, MENU_var.sub.ptrMenu[pos]->title, (pos == MENU_var.sub.cursor));
+    pos++;
   }
 }
 
@@ -1552,14 +1703,13 @@ static void MENU_Memory_Update(void)
 {
   char str_index[3] = "0:";
   uint8_t index;
+
   union
   {
     tunemem_t tunemem;
     uint8_t bytes[sizeof(tunemem_t) +1]; //make the union one byte longer
-  }memory;
-  
-
-  
+  } memory;
+    
   for(uint8_t i = 0; i < 3; i++)
   {
     index = MENU_var.memory.top + i;
@@ -1599,13 +1749,8 @@ static void MENU_MemorySave_Init(void)
   MENU_Memory_Init(); 
 }
 
-
-
-
-
 static void MENU_Memory_Run(void)
 {
-  
   //Timeout
   MENU_var.memory.timeout++;
   if(MENU_var.memory.timeout >= MENU_MEMORY_TIMEOUT)
