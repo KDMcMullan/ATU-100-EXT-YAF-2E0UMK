@@ -17,6 +17,10 @@
  * Modified 09-Oct-2026 2E0UMK
  * Default to large LCD font.
  * 
+ * Modified 01-Nov-2026 2E0UMK
+ * Calibration offset and gain can now by reset using the menu, so their
+ * constant values are stored elsewhere.
+ * 
  */
 
 #ifndef EEPROM_H
@@ -30,17 +34,15 @@ extern "C"
   
 __eeprom  int16_t ee_tune_stop_swr = 120;
 __eeprom  int16_t ee_tune_auto_swr = 140;
-__eeprom  uint8_t ee_tune_auto_enable = 0;
-__eeprom  uint8_t ee_sleep_enable = 0;
+__eeprom  uint8_t ee_tune_auto_enable = 0; // is this redundant?
+__eeprom  uint8_t ee_sleep_enable = 0;     // is this redundant?
 __eeprom  int16_t ee_sleep_delay_sec = 10; // most folk might actually want 0 for no screensaver
-__eeprom  int16_t ee_cal_point_0 = 10; // 1W
-__eeprom  int16_t ee_cal_point_1 = 30; // 3W
-__eeprom  int16_t ee_cal_offset = 100; // originally 150, which was likely unit specific
-__eeprom  int16_t ee_cal_gain = 9400; // originally 12000, which was likely unit specific
 
-// NB: call_gain 9600 compensates for real-world diode forward-voltage knee variations at typical HF frequencies.
-// NB: call_gain 9120 is the exact math scalar when compensating for a 5:1 vs 10:1 coupler conversion or low-power QRP detector scaling.
-// So, 9120-9600 is a fair guess (but may be specific to my hardware).
+__eeprom  int16_t ee_cal_point_0 = 10; // 1W
+__eeprom  int16_t ee_cal_point_1 = 250; // 25W
+__eeprom  int16_t ee_cal_offset = DEF_CAL_OFFSET_STD; // originally 150, which was likely unit specific
+__eeprom  int16_t ee_cal_gain = DEF_CAL_GAIN_STD; // originally 12000, which was likely unit specific
+
 
 __eeprom  tunemem_t ee_tunemem[TUNEMEM_ITEMS] ={
   {0,"Startup "}, //0
@@ -66,7 +68,6 @@ __eeprom  tunemem_t ee_tunemem[TUNEMEM_ITEMS] ={
 __eeprom uint8_t ee_flags = 0b00010001; // rotate / large display by default
 
 void EEPROM_Init(void);    
-// void EEPROM_Write(uint8_t addr, void *ptrValue, uint8_t size);
 void EEPROM_Write(uint16_t addr, void *ptrValue, uint8_t size);
 void EEPROM_Read(uint8_t addr, void *ptrValue, uint8_t size);    
   
