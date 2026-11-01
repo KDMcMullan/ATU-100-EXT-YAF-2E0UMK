@@ -20,6 +20,9 @@
  * Tidy up of redundant code, and comments.
  * Reworked DISP_LCD to centre on the units.
  * 
+ * Modified 01-Nov-2026 2E0UMK
+ * Jiggled the LCD clearing code so the MS digit doesn't flash.
+ * 
  */
 
 #include "defines.h"
@@ -524,30 +527,6 @@ void DISP_LCD(uint8_t x,      // x-coordinate of units digit, in pixels
     }
 
     /*
-     * Clear the integer field to the left of the units digit.
-     * Also clear the character position where a minus sign
-     * could have been displayed.
-     */
-    for (i = 1; i < maxint; i++)
-    {
-        char_x = (int32_t)x - ((int32_t)i * LCD_WIDTH);
-
-        if (char_x >= 0 &&
-            char_x <= (int32_t)(RES_X - LCD_WIDTH))
-        {
-            DISP_LCD_Char((uint8_t)char_x, page, ' ');
-        }
-    }
-
-    char_x = (int32_t)x - ((int32_t)maxint * LCD_WIDTH);
-
-    if (char_x >= 0 &&
-        char_x <= (int32_t)(RES_X - LCD_WIDTH))
-    {
-        DISP_LCD_Char((uint8_t)char_x, page, ' ');
-    }
-
-    /*
      * Convert to magnitude safely, including n == -32768.
      */
     signed_value = n;
@@ -589,6 +568,21 @@ void DISP_LCD(uint8_t x,      // x-coordinate of units digit, in pixels
         divisor *= 10UL;
     }
 
+    /*
+     * Clear unused integer positions and the sign position.
+     * Do not erase digits which are about to be drawn.
+     */
+    for (i = digits; i <= maxint; i++)
+    {
+        char_x = (int32_t)x - ((int32_t)i * LCD_WIDTH);
+
+        if (char_x >= 0 &&
+            char_x <= (int32_t)(RES_X - LCD_WIDTH))
+        {
+            DISP_LCD_Char((uint8_t)char_x, page, ' ');
+        }
+    }
+    
     /*
      * Restore the integer portion for digit extraction.
      */
