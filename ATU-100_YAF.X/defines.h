@@ -29,6 +29,10 @@
  * Modified 29-Sep-2026 2E0UMK
  * Added a new bit to indicate that the large font is to be employed.
  * 
+ * Modified 01-Nov-2026 2E0UMK
+ * Added defines for cal gain and offset for "Default" hardware and
+ * QRP variant.
+ * 
  */
 
 #ifndef DEFINES_H
@@ -57,7 +61,6 @@ extern "C"
 #define DISPLAY_I2C_ADDR    0x78  
 #define DISPLAY_INIT_DELAY  500  //ms
 
-//#define _XTAL_FREQ 16000000
 #define _XTAL_FREQ 16000000UL
 
 //  the CPU clock is 4 Mhz, so to convert to microseconds, there are
@@ -141,8 +144,7 @@ extern "C"
   
 #define REL_CAP_SW          LATCbits.LATC0
 #define REL_CAP_SW_DIR      TRISCbits.TRISC0
-  
-//
+
 #define REL_IND_1           LATBbits.LATB3
 #define REL_IND_1_DIR       TRISBbits.TRISB3  
   
@@ -172,22 +174,32 @@ extern "C"
 #define FLAG_WAKE_ON_RF        2 // 1 = Wake on RF, 0 = Button only (DigiMode)
 #define FLAG_RELAY_SAVE        3 // 1 = Drop relays on sleep (QRP only), 0 = Keep match
 #define FLAG_DISPLAY_LARGE     4 // large PWR/SWR display
-#define FLAG_5                 5
-#define FLAG_6                 6
-#define FLAG_7                 7
+//#define FLAG_5                 5 
+//#define FLAG_6                 6
+//#define FLAG_7                 7
 #define FLAG_DISPLAY_ROTATE_MASK  (1 << FLAG_DISPLAY_ROTATE)
 #define FLAG_DEBUG_MASK           (1 << FLAG_DEBUG)
 #define FLAG_WAKE_ON_RF_MASK      (1 << FLAG_WAKE_ON_RF)
 #define FLAG_RELAY_SAVE_MASK      (1 << FLAG_RELAY_SAVE)
 #define FLAG_DISPLAY_LARGE_MASK   (1 << FLAG_DISPLAY_LARGE)
 
+// NB: call_gain 9600 compensates for real-world diode forward-voltage knee variations at typical HF frequencies.
+// NB: call_gain 9120 is the exact math scalar when compensating for a 5:1 vs 10:1 coupler conversion or low-power QRP detector scaling.
+// So, 9120-9600 is a fair guess (but may be specific to my hardware).
+
+#define DEF_CAL_OFFSET_STD     175;
+#define DEF_CAL_GAIN_STD     10100;
+
+#define DEF_CAL_OFFSET_QRP       0; // actually try -90.
+#define DEF_CAL_GAIN_QRP      6580;
+
 
 //----------------------------------------------------------------------    
 
-#define TUNEMEM_ITEMS       10
+#define TUNEMEM_ITEMS      10
 #define TUNEMEM_STRLEN      8  
   
-#define SLEEP_WAKEUP_PWR      5 // = 0.5W
+#define SLEEP_WAKEUP_PWR    5 // = 0.5W
   
 typedef struct
 {
@@ -219,11 +231,12 @@ const    int16_t CAP_VALUES[7] = {10, 22, 47, 100, 220, 470, 1000}; //Cap in pF
 const    int16_t IND_VALUES[7] = {50, 100, 220, 450, 1000, 2200, 4400}; //Ind in nH
   
   
-//Note: eeprom values in global due to eeprom address flexibility
-  typedef struct
+//Note: EEPROM values in global due to EEPROM address flexibility
+
+typedef struct
   {
-    int16_t PWR; //deziWatt -> 10 = 1W
-    int16_t SWR; //100 = 1.00
+    int16_t PWR; // deciWatt -> 10 = 1W
+    int16_t SWR; // 100 = 1.00
 
     int16_t tune_stop_swr;
     int16_t tune_auto_swr;
@@ -266,12 +279,13 @@ global_t extern global;
 
 const char str_ATU100EXT[] = "ATU-100";
 const char str_YAF[]       = "EXT-YAF";
-const char str_Version[]   =  "V0.69.4"; // 2E0UMK - LCD complete
+const char str_Version[]   =  "V0.69.5"; // 2E0UMK - LCD complete
 const char str_YetAnother[] = "YetAnother";
 const char str_Firmware[] = "Firmware";
-const char str_Hardware[] = "Hardware";
+const char str_Hardware[] = "Hardware "; // space so it works (!) as a menu item
+
 const char str_designed[] = "designed";
-const char str_by[] ="by";
+const char str_by[] = "by";
 const char str_N7DCC[] = "N7DDC";
 const char str_DG4SN[] = "DG4SN";
 
@@ -297,14 +311,9 @@ const char str_Off[] = "Off";
 const char str_On[] = " On";
 const char str_OK[] = "OK";
 
-const char str_AUTO[]  = "AUTO";
 const char str_Power[] = "Power";
 const char str_Point[] = "Point";
 
-const char str_Bypass[] = " Bypass ";
-
-//const char str_Sec[] = "Sec";
-//const char str_sleeping[] ="sleeping";
 const char str_Delay[]  = "Delay";
 const char str_Sleep[]  = "Sleep";     // Sleep delay time
 const char str_RFwake[]  = "RFwake";   // Wake on RF
@@ -314,13 +323,13 @@ const char str_MENU_Display[] = "Display   ";
 const char str_Normal[] = "Normal";
 const char str_Rotate[] = "Rotate";
 
-const char str_Auto[]   =  "Auto";
-const char str_Start[]   =  "Start";
-const char str_Stop[]   =  "Stop";
-const char str_Save[]   = "Save";
+const char str_Auto[]     = "Auto";
+const char str_Start[]    = "Start";
+const char str_Stop[]     = "Stop";
+const char str_Save[]     = "Save";
+const char str_Standard[] = "Standard";
 
-const char str_MENU_Debug[] = "Debug     ";
-
+const char str_MENU_Debug[]         =  "Debug     ";
 const char str_MENU_Reset[]         =  "Reset     ";
 const char str_MENU_Bypass[]        =  "Bypass    ";
 const char str_MENU_Save[]          =  "Save Tune ";
@@ -333,8 +342,8 @@ const char str_MENU_Setup[]         =  "Setup     ";
 const char str_MENU_About[]         =  "About     ";
   
 
-const char str_SpaceLine[] = "          ";
-const char str_WaitForHF[] = "Await Tx"; // I never liked "wait f. HF"
+const char str_SpaceLine[] = "          "; // FUTURE: shorten these strings and use the center function
+const char str_WaitForHF[] = " Await Tx ";
 const char str_Running[]   = " Running  "; 
 const char str_Break[]     = "  Break   ";
 const char str_PWR_low[]   = " PWR low  ";
