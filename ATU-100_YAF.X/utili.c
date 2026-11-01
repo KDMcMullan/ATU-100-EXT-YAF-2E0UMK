@@ -10,8 +10,11 @@
  * Explicitly cast the value into *p in UTILI_Int2Str() and also the implicit
  * I16 "10" in order to silence a warning.
  * 
+ * Modified 01-Nov-2026 2E0UMK
+ * All I really wanted to do was fix a compiler warning. Ended up reworking
+ * UTILI_Int2Str.
+ * 
  */
-
 
 #include "defines.h"
 
@@ -95,53 +98,53 @@ uint16_t UTILI_Get_LC_Relays(void)
 
 void UTILI_Int2Str(int16_t number, char *output, uint8_t size)
 {
+    char *p;
+    uint8_t minus = 0;
+    uint16_t magnitude;
 
-  char *p;
-  uint8_t minus=0;
+    if (size <= 1) return;
 
-  if (size <= 1) return;
+    uint8_t pos = size - 1;
 
-  uint8_t pos = size - 1;
+    p = output + pos;
+    *p = 0;
 
-  p = output + pos;
-
-  *p = 0; //string terminator
-
-  if (number < 0)
-  {
-    minus =1;
-    number = number * -1;
-  }
-
-  do
-  {
-    pos--;
-    p--;
-    if (number > 0)
+    if (number < 0)
     {
-//      *p = '0' + (number % 10);
-      *p = (uint8_t)('0' + (number % 10U));
-      number /= 10;
-    } else
+        minus = 1;
+        magnitude = (uint16_t)(-(int32_t)number);
+    }
+    else
     {
-      if (pos == (size - 2)) *p='0'; //if zero -> '0'
-      else
-      {
-        if (minus)
-        {
-          *p='-';   //if minus -> '-'
-          minus=0;
-        } else
-        {
-          *p = ' ';  //fill with space
-        }
-      }
+        magnitude = (uint16_t)number;
     }
 
+    do
+    {
+        pos--;
+        p--;
 
-  }  while (pos > 0);
+        if (magnitude > 0)
+        {
+            *p = (char)((uint8_t)'0' + (uint8_t)(magnitude % 10U));
+            magnitude /= 10U;
+        }
+        else
+        {
+            if (pos == (size - 2))
+                *p = '0';
+            else if (minus)
+            {
+                *p = '-';
+                minus = 0;
+            }
+            else
+                *p = ' ';
+        }
 
-};
+    } while (pos > 0);
+}
+
 
 /**
  * Calculate the voltage on a 50ohm resistor
@@ -172,11 +175,11 @@ int16_t UTILI_deciWatt_to_centiVolt(int16_t deciWatt)
 }
 
 /**
- * Calculate the power fron the voltage on 50ohms
+ * Calculate the power from the voltage on 50ohms
  * P = U² / 50 ohm
- * deziWatt = ((centiVolt/100) x (centiVolt/100) / 50ohm) * 10
- * deziWatt = ((centiVolt x centiVolt) / (10000 x 50)) * 10
- * deziWatt = (centiVolt x centiVolt) / 50000
+ * deciWatt = ((centiVolt/100) x (centiVolt/100) / 50ohm) * 10
+ * deciWatt = ((centiVolt x centiVolt) / (10000 x 50)) * 10
+ * deciWatt = (centiVolt x centiVolt) / 50000
  * Round +25000/50000 = +0,5
  * @param deciVolt
  * @return 
