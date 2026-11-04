@@ -30,8 +30,8 @@
  * Added a new bit to indicate that the large font is to be employed.
  * 
  * Modified 01-Nov-2026 2E0UMK
- * Added defines for cal gain and offset for "Default" hardware and
- * QRP variant.
+ * Added defines for P0 and P1 and cal gain and offset for "Default"
+ * hardware and QRP variant.
  * 
  */
 
@@ -183,15 +183,19 @@ extern "C"
 #define FLAG_RELAY_SAVE_MASK      (1 << FLAG_RELAY_SAVE)
 #define FLAG_DISPLAY_LARGE_MASK   (1 << FLAG_DISPLAY_LARGE)
 
-// NB: call_gain 9600 compensates for real-world diode forward-voltage knee variations at typical HF frequencies.
-// NB: call_gain 9120 is the exact math scalar when compensating for a 5:1 vs 10:1 coupler conversion or low-power QRP detector scaling.
-// So, 9120-9600 is a fair guess (but may be specific to my hardware).
+// NB: cal_gain 9600 compensates for real-world diode forward-voltage knee
+// variations at typical HF frequencies.
+// (No 1:5 tandem match (current) transformer (transcoupler) modification.)
 
-#define DEF_CAL_OFFSET_STD     175;
-#define DEF_CAL_GAIN_STD     10100;
+#define DEF_CAL_OFFSET_STD     175
+#define DEF_CAL_GAIN_STD     10100
+#define DEF_CAL_P0_STD          50
+#define DEF_CAL_P1_STD         250
 
-#define DEF_CAL_OFFSET_QRP       0; // actually try -90.
-#define DEF_CAL_GAIN_QRP      6580;
+#define DEF_CAL_OFFSET_QRP       0 // actually try -90.
+#define DEF_CAL_GAIN_QRP      6580
+#define DEF_CAL_P0_QRP          10
+#define DEF_CAL_P1_QRP          30
 
 
 //----------------------------------------------------------------------    
