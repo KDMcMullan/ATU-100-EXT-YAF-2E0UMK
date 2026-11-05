@@ -22,3 +22,13 @@ If Screen Saver is active AND Forward RF is detected:
 If Wake_On_RF == ON: Clear screen saver, restore OLED display, reset idle timer.
 
 If Wake_On_RF == OFF: Do nothing. The PIC continues to monitor forward/reflected power and calculate SWR in the background, but the OLED remains in Larson scanner mode to prevent pixel wear.
+
+
+
+Calibration now works. I'm not convinced the calibration routine ever worked. It's possible that there's a compiler bug I won't bore you with. Or maybe I just have it set up incorrectly.
+In Hardware mode, there are options for Standard (non-modified EXT unit) and QRP (1:5 turns on the tandem match / binocular core transformer). NB these make absolutely no difference to the calculation performed. Both options will work with both hardware types. Some radios may not provide a solid FM or CW signal to calibrate off. All these options do is install a "fairly good" set of default values which should get you approximately working.
+Sleep mode employs a screen saver. It's a "screen saver" in the true sense: these OLEDs don't last forever and mine is affected by "burn-in" after only 1 year. We can select the delay time, whether RF input wakes the device from sleep, and whether the sleep state also sleeps the relays. The original plan was to sleep the screen, but keeping the relays energised costs a lot of battery. So, we can allow the relays to sleep (a good battery / QRP option), or allow them to sleep. I would not sleep the relays if operating on full power: I don't like the idea of them clicking in and out with 100W on board.
+In the Display menu, you can rotate the display 180 degrees and toggle the large LCD on/off. (If the LCD is on, you don't get to see the inductance and capacitance.)
+Don't worry about the debug menu. It will display values which are useful to developers. It will disappear in most versions.
+
+
