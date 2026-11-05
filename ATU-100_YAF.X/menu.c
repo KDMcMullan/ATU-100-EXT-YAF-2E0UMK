@@ -20,7 +20,9 @@
  * Added debug display selection. Tidied up the code comments around a
  * previous attempt at this.
  * Fixed a buglet in the use of MENU_var.tparam.cursor which should have been
- * MENU_var.sleep.cursor . Not sure if this was correct...
+ * MENU_var.sleep.cursor. These structs are in the same union and both start
+ * with uint8_r cursor, so they share the same memory address, and would never
+ * have been an actual problem.
  *
  * Modified 11-Sep-2026 2E0UMK
  * Tried to undo the mess I made attempting to debug the calibration routine.
@@ -47,6 +49,17 @@
  * 
  * Modified 30-Oct-2026 2E0UMK
  * Modified for additional menu item to select hardware type.
+ * 
+ * Modified 04-Nov-2026 2E0UMK
+ * FINALLY got to the bottom of the calibration problem. Sort of.
+ * It looks like indirect addressing isn't working well in the compiler.
+ * It's fixed no by using direct addressing, which is a shame when we have an
+ * index value asking to be used. Seems to be working.
+ * 
+ * To-Do:
+ * Not a functional issue, but for readability, refactor MENU_var.memory such
+ * that it doesn't appear to be shared by the Hardware functions and the Memory
+ * functions.
  * 
  */
 
@@ -92,11 +105,11 @@ const menu_t* current_menu;
 static union
 {
 
-  struct // usable for anything that doesn't need an auxiliary variable
+  struct
   {
     uint8_t cursor;
     uint8_t enable;
-  } menu_item_bool_t; // NB shared between things which only need these fields
+  } debug;
 
   struct
   {
@@ -160,6 +173,8 @@ static union
     int16_t cal_point[2];
     int16_t adc_value[2];
     int16_t adc_value_old;
+    uint8_t settling;
+    uint8_t settle_count;
   } cal;
 
   struct
@@ -188,7 +203,7 @@ static union
     uint8_t mem_index;
     uint8_t cursor;
     tunemem_t tunemem;
-    uint8_t str_terminate; //must stay direct behind memory
+    uint8_t str_terminate; // must stay direct behind memory
   } startupsave;    
   
 } MENU_var;
@@ -340,7 +355,7 @@ static void MENU_Main_Update(void)
 
   if (global.bypass_enable == TRUE)
   {
-    UTILI_Int2Str(MENU_var.cal.step, str, sizeof(str));
+//    UTILI_Int2Str(MENU_var.cal.step, str, sizeof(str)); // not sure why this was in here
     DISP_Str(0, 3, str_MENU_Bypass, 1);
   } 
   else
@@ -1134,22 +1149,22 @@ static void MENU_Display_Run(void)
 
 static void MENU_Debug_Update(void)
 {
-    if (MENU_var.menu_item_bool_t.enable)
+    if (MENU_var.debug.enable)
     {
         DISP_Str(0, 0, str_On,
-                 MENU_var.menu_item_bool_t.cursor == 0);
+                 MENU_var.debug.cursor == 0);
     }
     else
     {
         DISP_Str(0, 0, str_Off,
-                 MENU_var.menu_item_bool_t.cursor == 0);
+                 MENU_var.debug.cursor == 0);
     }
 
     DISP_Str(0, 3, str_Save,
-             MENU_var.menu_item_bool_t.cursor == 1);
+             MENU_var.debug.cursor == 1);
 
     DISP_Str(7, 3, str_Esc,
-             MENU_var.menu_item_bool_t.cursor == 2);
+             MENU_var.debug.cursor == 2);
 }
 
 
@@ -1158,9 +1173,9 @@ static void MENU_Debug_Init(void)
     DISP_Clr();
     BUTTON_Reset();
 
-    MENU_var.menu_item_bool_t.cursor = 0;
+    MENU_var.debug.cursor = 0;
 
-    MENU_var.menu_item_bool_t.enable =
+    MENU_var.debug.enable =
         (global.flags & FLAG_DEBUG_MASK) != 0;
 
 //    DISP_Str(0, 0, "Debug", 0);
@@ -1173,11 +1188,11 @@ static void MENU_Debug_Run(void)
 {
     if (BUTTON_count == BUTTON_RELEASED)
     {
-        MENU_var.menu_item_bool_t.cursor++;
+        MENU_var.debug.cursor++;
 
-        if (MENU_var.menu_item_bool_t.cursor > 2)
+        if (MENU_var.debug.cursor > 2)
         {
-            MENU_var.menu_item_bool_t.cursor = 0;
+            MENU_var.debug.cursor = 0;
         }
 
         MENU_Debug_Update();
@@ -1188,18 +1203,18 @@ static void MENU_Debug_Run(void)
         BUTTON_count -= BUTTON_LONG_REPEAT_DELAY_MAX;
 
         // Cursor at Debug On/Off
-        if (MENU_var.menu_item_bool_t.cursor == 0)
+        if (MENU_var.debug.cursor == 0)
         {
-            MENU_var.menu_item_bool_t.enable =
-                !MENU_var.menu_item_bool_t.enable;
+            MENU_var.debug.enable =
+                !MENU_var.debug.enable;
 
             MENU_Debug_Update();
         }
 
         // Cursor at Save
-        if (MENU_var.menu_item_bool_t.cursor == 1)
+        if (MENU_var.debug.cursor == 1)
         {
-            if (MENU_var.menu_item_bool_t.enable)
+            if (MENU_var.debug.enable)
             {
                 global.flags |= FLAG_DEBUG_MASK;
             }
@@ -1217,7 +1232,7 @@ static void MENU_Debug_Run(void)
         }
 
         // Cursor at Esc
-        if (MENU_var.menu_item_bool_t.cursor == 2)
+        if (MENU_var.debug.cursor == 2)
         {
             MENU_Init();
             return;
@@ -1438,6 +1453,8 @@ static void MENU_CalPWR_Init(void)
   MENU_var.cal.step = 0;
   MENU_var.cal.cal_point[0] = global.cal_point[0];
   MENU_var.cal.cal_point[1] = global.cal_point[1];
+  MENU_var.cal.settling = 0;
+  MENU_var.cal.settle_count = 0;
 
   BUTTON_Reset();
 
@@ -1451,7 +1468,7 @@ static void MENU_CalPWR_Run(void)
 
   if (BUTTON_count == BUTTON_RELEASED)
   {
-    MENU_var.cal.cursor = MENU_var.cal.cursor ^ 0x01; // value 0 or 1
+    MENU_var.cal.cursor = MENU_var.cal.cursor ^ 0x01; // 0->1->0->...
     MENU_CalPWR_Update();
   }
 
@@ -1459,71 +1476,105 @@ static void MENU_CalPWR_Run(void)
   {
     BUTTON_count -= BUTTON_LONG_REPEAT_DELAY_MAX;
 
-    if ((MENU_var.cal.cursor == 0)&&(MENU_var.cal.step <=1)) // cursor at "Power" and cal step 0 or 1 of 0..3
+    if ((MENU_var.cal.cursor == 0)&&(MENU_var.cal.step <=1))
     {
-      // increase by 0.5W if less than 10W, otherwise increase by 5W
+      // Increase by 0.5W if less than 10W, otherwise increase by 5W
       if (MENU_var.cal.cal_point[MENU_var.cal.step] < 100)
         MENU_var.cal.cal_point[MENU_var.cal.step] += 5;
       else
         MENU_var.cal.cal_point[MENU_var.cal.step] += 50;
 
-      // Roll over if we meet the upper power selection limit 
-      // Sequence is 0,2,1,3. Steps 0 and 1 are power selection
-      if (MENU_var.cal.step == 0) // only for step 0 of 0..3
+      // Roll over if we meet the upper power selection limit
+      if (MENU_var.cal.step == 0)
       {
-        // if the menu power value > maximum for step 0, set it to zero
         if (MENU_var.cal.cal_point[0] > CAL_STEP0_MAX)
           MENU_var.cal.cal_point[0] = 0;
-      } 
-      else // only for step 1 of 0..3 due to parent "if"
+      }
+      else
       {
-        // if the menu power value > maximum for step 0, set it to cal point 0
         if (MENU_var.cal.cal_point[1] > CAL_STEP1_MAX)
           MENU_var.cal.cal_point[1] = 0;
-      } 
+      }
     }
-    else // cursor at "Power" and cal step 0 or 1
+    else
     {
-        MENU_Init();
-        return;
+      MENU_Init();
+      return;
     }
 
     MENU_CalPWR_Update();
+  }
 
-    // debug
-//    UTILI_Int2Str(MENU_var.cal.step, str, 3);
-//    DISP_Str(0, 3, str, 0);
-
-  }  
-
-  // ADC 
-  if (MENU_var.cal.step <= 1) //step 0 & 1
+  // ADC calibration capture
+  if (MENU_var.cal.step <= 1)
   {
-    if (global.adc_f_mV > ADC_CAL_START)
+    if (MENU_var.cal.settling == 0)
     {
-      if (global.adc_f_mV == MENU_var.cal.adc_value_old) //stable value current == old
+      // Wait for RF to exceed the start threshold
+      if (global.adc_f_mV > ADC_CAL_START)
       {
-        MENU_var.cal.adc_value[MENU_var.cal.step] = global.adc_f_mV; //save 
+        MENU_var.cal.settling = 1;
+        MENU_var.cal.settle_count = 0;
+      }
+    }
+    else
+    {
+      // Wait 500 ms (50 executions at 10 ms intervals)
+      if (++MENU_var.cal.settle_count >= 50)
+      {
+
+        // Capture the latest rolling ADC average
+        // don't fully understand why the below line doesn't work
+        // MENU_var.cal.adc_value[MENU_var.cal.step] = global.adc_f_mV;
+
+        // so we do it the hard way instead:
+        if (MENU_var.cal.step == 0)
+          { MENU_var.cal.adc_value[0] = global.adc_f_mV; }
+        else
+          { MENU_var.cal.adc_value[1] = global.adc_f_mV; }
+        
+        MENU_var.cal.settling = 0;
 
         DISP_Clr();
-        DISP_Str(DISP_COL_CENTER, 1, str_OK, 0);
-        MENU_var.cal.step += 2; // step 0 goes to 2 & step 1 goes to 3
+
+        if (global.flags & FLAG_DEBUG_MASK)
+        {
+            DISP_Str(0, 0, "Step", 0);
+            UTILI_Int2Str(MENU_var.cal.step, str, sizeof(str));
+            DISP_Str(4, 0, str, 0);
+
+            DISP_Str(0, 1, "ADC", 0);
+            UTILI_Int2Str(global.adc_f_mV, str, sizeof(str));
+            DISP_Str(4, 1, str, 0);
+
+            DISP_Str(0, 2, "P0", 0);
+            UTILI_Int2Str(MENU_var.cal.adc_value[0], str, sizeof(str));
+            DISP_Str(4, 2, str, 0);
+
+            DISP_Str(0, 3, "P1", 0);
+            UTILI_Int2Str(MENU_var.cal.adc_value[1], str, sizeof(str));
+            DISP_Str(4, 3, str, 0);
+        }
+        else
+        {
+          DISP_Str(DISP_COL_CENTER, 1, str_OK, 0);
+        }
+        MENU_var.cal.step += 2;
       }
-      __delay_ms(100); // allow a bit of time for stability
     }
-  } 
-  else //step 2 & 3
+  }
+  else
   {
-    //Wait end of power
+    // Wait end of power
     if (global.adc_f_mV < ADC_CAL_STOP)
     {
-     
-      MENU_var.cal.step--;  // step 2 goes to 1 & step 3 goes to 2
+      MENU_var.cal.step--;
+
       if (MENU_var.cal.step == 1)
       {
         DISP_Clr();
         MENU_CalPWR_Update();
-      } 
+      }
       else
       {
         // test for insane calibration values
@@ -1531,21 +1582,27 @@ static void MENU_CalPWR_Run(void)
 //        if ((MENU_var.cal.adc_value[1] > MENU_var.cal.adc_value[0]) &&
 //           (MENU_var.cal.cal_point[1] > MENU_var.cal.cal_point[0]))
 //        {
-          global.cal_point[0] = MENU_var.cal.cal_point[0];
-          global.cal_point[1] = MENU_var.cal.cal_point[1];
 
-          int16_t y1 = UTILI_deciWatt_to_centiVolt(global.cal_point[0]);  
-          int16_t y2 = UTILI_deciWatt_to_centiVolt(global.cal_point[1]);
+        // Copy selected calibration points
+        global.cal_point[0] = MENU_var.cal.cal_point[0];
+        global.cal_point[1] = MENU_var.cal.cal_point[1];
 
-          global.cal_gain = (int16_t) (((y2 - y1) * (int32_t) CAL_GAIN_MULTIPLIER) / (MENU_var.cal.adc_value[1] - MENU_var.cal.adc_value[0]));
-          global.cal_offset = y1 - (int16_t) (((int32_t) global.cal_gain * MENU_var.cal.adc_value[0]) / CAL_GAIN_MULTIPLIER);
+        // Calculate calibration coefficients
+        int16_t y1 = UTILI_deciWatt_to_centiVolt(global.cal_point[0]);
+        int16_t y2 = UTILI_deciWatt_to_centiVolt(global.cal_point[1]);
 
-          //Save new cal values to eeprom
-          EEPROM_Write((uint8_t)&ee_cal_point_0, &global.cal_point[0], sizeof (ee_cal_point_0));
-          EEPROM_Write((uint8_t)&ee_cal_point_1, &global.cal_point[1], sizeof (ee_cal_point_1));
-          EEPROM_Write((uint8_t)&ee_cal_offset, &global.cal_offset, sizeof (ee_cal_offset));
-          EEPROM_Write((uint8_t)&ee_cal_gain, &global.cal_gain, sizeof (ee_cal_gain));
-         
+        global.cal_gain = (int16_t) (((y2 - y1) * (int32_t) CAL_GAIN_MULTIPLIER) /
+                         (MENU_var.cal.adc_value[1] - MENU_var.cal.adc_value[0]));
+
+        global.cal_offset = y1 - (int16_t) (((int32_t) global.cal_gain *
+                              MENU_var.cal.adc_value[0]) / CAL_GAIN_MULTIPLIER);
+
+        // Save new calibration values to EEPROM
+        EEPROM_Write((uint8_t)&ee_cal_point_0, &global.cal_point[0], sizeof (ee_cal_point_0));
+        EEPROM_Write((uint8_t)&ee_cal_point_1, &global.cal_point[1], sizeof (ee_cal_point_1));
+        EEPROM_Write((uint8_t)&ee_cal_offset, &global.cal_offset, sizeof (ee_cal_offset));
+        EEPROM_Write((uint8_t)&ee_cal_gain, &global.cal_gain, sizeof (ee_cal_gain));
+
 //        }
 //        else
 //        {
@@ -1554,26 +1611,27 @@ static void MENU_CalPWR_Run(void)
 //          __delay_ms(2000);
 //        }
 
+
+
         if (global.flags & FLAG_DEBUG_MASK)
         {
-
           // Captured ADC readings
-           DISP_Str(0, 0, "A0:", 0);
-           UTILI_Int2Str(MENU_var.cal.adc_value[0], str, sizeof(str));
-           DISP_Str(2, 0, str, 0);
+          DISP_Str(0, 0, "A0:", 0);
+          UTILI_Int2Str(MENU_var.cal.adc_value[0], str, sizeof(str));
+          DISP_Str(2, 0, str, 0);
 
-           DISP_Str(0, 1, "A1:", 0);
-           UTILI_Int2Str(MENU_var.cal.adc_value[1], str, sizeof(str));
-           DISP_Str(2, 1, str, 0);
+          DISP_Str(0, 1, "A1:", 0);
+          UTILI_Int2Str(MENU_var.cal.adc_value[1], str, sizeof(str));
+          DISP_Str(2, 1, str, 0);
 
-           // Calculated calibration coefficients
-           DISP_Str(0, 2, "G:", 0);
-           UTILI_Int2Str(global.cal_gain, str, sizeof(str));
-           DISP_Str(2, 2, str, 0);
+          // Calculated calibration coefficients
+          DISP_Str(0, 2, "G:", 0);
+          UTILI_Int2Str(global.cal_gain, str, sizeof(str));
+          DISP_Str(2, 2, str, 0);
 
-           DISP_Str(0, 3, "O:", 0);
-           UTILI_Int2Str(global.cal_offset, str, sizeof(str));
-           DISP_Str(2, 3, str, 0);
+          DISP_Str(0, 3, "O:", 0);
+          UTILI_Int2Str(global.cal_offset, str, sizeof(str));
+          DISP_Str(2, 3, str, 0);
 
 //            UTILI_Int2Str(global.cal_point[0], str, sizeof(str));
 //            DISP_Str(0, 0, "P0:", 0);
@@ -1583,35 +1641,15 @@ static void MENU_CalPWR_Run(void)
 //            DISP_Str(0, 1, "P1:", 0);
 //            DISP_Str(3, 1, str, 0);
 
-            __delay_ms(5000); // let's read it
-        
-        } // if debug 
-        
+          __delay_ms(6000); // Allow time to read debug values
+        }
 
         MENU_Init();
         return;
       }
     }
   }
-
-  MENU_var.cal.adc_value_old = global.adc_f_mV;
-
 } // static void MENU_CalPWR_Run()
-
-
-
-//static void MENU_Back_Init(void)
-//{
-//  const menu_t* ptrMenu;
-//  if(stack_index > 1)
-//  {
-//    stack_index--;
-//    stack_index--;
-//    ptrMenu = (menu_t*) stack_menu[stack_index];
-//    ptrMenu->Init(); 
-//
-//  }
-//}
 
 
 //-- MENU_Setup -------------------------------------------------------------------------------------------------
