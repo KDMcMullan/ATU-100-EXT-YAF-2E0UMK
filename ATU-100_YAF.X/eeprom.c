@@ -12,6 +12,10 @@
  * EEPROM write now waits for completion of write before writing next byte.
  * Also modified prototype to remove casting warnings.
  * 
+ * Modified 05-Nov-2026 2E0UMK
+ * Reverted back to 8 bit address in EEPROM write. This needs fixed at the
+ * calling end. The underlying function is byte addressed.
+ * 
  */
 
 #include "defines.h"
@@ -28,7 +32,6 @@ void EEPROM_Init(void)
   EEPROM_Read((uint8_t)&ee_cal_point_1, &global.cal_point[1], sizeof(global.cal_point[1]));
   EEPROM_Read((uint8_t)&ee_cal_offset, &global.cal_offset, sizeof(global.cal_offset));
   EEPROM_Read((uint8_t)&ee_cal_gain, &global.cal_gain, sizeof(global.cal_gain));
-
   EEPROM_Read((uint8_t)&ee_flags, &global.flags, sizeof(global.flags));
 
 // Stopgap so that an EEPROM which hasn't previously contained our flags byte
@@ -42,8 +45,7 @@ void EEPROM_Init(void)
   
 }
 
-void EEPROM_Write(uint16_t addr, void *ptrValue, uint8_t size)
-// void EEPROM_Write(uint8_t addr, void *ptrValue, uint8_t size)
+void EEPROM_Write(uint8_t addr, void *ptrValue, uint8_t size)
 {
     uint8_t *ptr = (uint8_t *)ptrValue;
     while(size > 0)
