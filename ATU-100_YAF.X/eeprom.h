@@ -21,6 +21,9 @@
  * Calibration P0, P1, offset and gain can now by reset using the menu, so
  * their constant values are stored in defines.h.
  * 
+ * Modified 05-Nov-2026 2E0UMK
+ * Reverted back to 8 bit address in EEPROM write.
+ * 
  */
 
 #ifndef EEPROM_H
@@ -68,7 +71,7 @@ __eeprom  tunemem_t ee_tunemem[TUNEMEM_ITEMS] ={
 __eeprom uint8_t ee_flags = 0b00010001; // rotate / large display by default
 
 void EEPROM_Init(void);    
-void EEPROM_Write(uint16_t addr, void *ptrValue, uint8_t size);
+void EEPROM_Write(uint8_t addr, void *ptrValue, uint8_t size);
 void EEPROM_Read(uint8_t addr, void *ptrValue, uint8_t size);    
   
 
