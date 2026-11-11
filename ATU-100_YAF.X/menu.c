@@ -404,14 +404,16 @@ static void MENU_Main_Init(void)
   DISP_Clr();
   BUTTON_Reset();
 
-  DISP_Str(0, 0, str_PWR, 0);
-
   if (global.flags & FLAG_DISPLAY_LARGE_MASK)
   {
-    DISP_Str(0, 2, str_SWR, 0);
-  }
+    DISP_Str(0, 0, "S", 0); // foreshortened to fit the big font in
+    DISP_Str(0, 2, "P", 0);
+//    DISP_Str(0, 0, "\x82", 0); // glyphs for PWR and SWR
+//    DISP_Str(0, 2, "\x83", 0);
+  }  
   else
   {
+    DISP_Str(0, 0, str_PWR, 0); // normal size font
     DISP_Str(0, 1, str_SWR, 0);
   }
 
