@@ -3,6 +3,7 @@
  * Yet Another Firmware
  * by DG4SN
  * 
+ * File:   main.c
  * (Presumably) created around March 2022
  *
  * Modified 09-Sep-2026 2E0UMK
@@ -10,6 +11,9 @@
  *
  * Modified 10-Sep-2026 2E0UMK
  * Changed to Int Osc and disabled redundant clock settings.
+ * 
+ * Modified 06-Nov-2026 2E0UMK
+ * Tidy up to remove a warning.
  * 
  */
 
@@ -45,9 +49,7 @@ static volatile uint8_t tick_count =0;
 
 void MAIN_Init(void)
 {
- 
-
-  
+   
   //Clock
   OSCCON = 0b01111010; // 16 MHz oscillator, Internal
 
@@ -57,39 +59,27 @@ void MAIN_Init(void)
   LATC = 0;
 
      
- //Timer 2
- //set to 1ms = 1000Hz
- //Fosc/4 = 4Mhz, Prescaler 1:16, Comp value 250,  Postscaler 1:1
+ // Timer 2
+ // set to 1ms = 1000Hz
+ // Fosc/4 = 4Mhz, Prescaler 1:16, Comp value 250,  Postscaler 1:1
    
- T2CONbits.T2CKPS = 2; //Prescaler 1:16
- T2CONbits.T2OUTPS = 0; //Postscaler 1:1
- PR2 = 250;            //Periode Register
+  T2CONbits.T2CKPS = 2;  // Prescaler 1:16
+  T2CONbits.T2OUTPS = 0; // Postscaler 1:1
+  PR2 = 250;             // Period Register
  
- PIE1bits.TMR2IE = 1;   //Timer 2 interrupt enable
- INTCONbits.PEIE = 1; // Enable Perpherial Interrupt
+  PIE1bits.TMR2IE = 1;   // Timer 2 interrupt enable
+  INTCONbits.PEIE = 1;   // Enable Peripheral Interrupt
  
- T2CONbits.TMR2ON = 1;  //Timer on
- INTCONbits.GIE = 1; // Enable Global Interrupt
+  T2CONbits.TMR2ON = 1;  // Timer on
+  INTCONbits.GIE = 1;    // Enable Global Interrupt
   
- 
- 
-// Set watchdog  
-//  CLRWDT();
-//  WDTCONbits.WDTPS4 = 0;
-//  WDTCONbits.WDTPS3 = 1;
-//  WDTCONbits.WDTPS2 = 0; // 1 sec WDT
-//  WDTCONbits.WDTPS1 = 1;
-//  WDTCONbits.WDTPS0 = 0;
-//  CLRWDT();
-
-
   ANSELBbits.ANSELB = 0; // all as digital
   
-  CM1CON0bits.C1ON = 0; // Disable comparators
+  CM1CON0bits.C1ON = 0;  // Disable comparators
   CM2CON0bits.C2ON = 0;
 
  
-  
+ 
 //  //  If we are using the auto button for an output for uart
 //  //  set B1 (auto) to an output
 //#ifdef DEBUG_UART 
@@ -184,7 +174,7 @@ void main(void)
   DISP_Str(DISP_COL_CENTER,2,str_Version,0);
   
   #ifdef DEBUG_UART
-  UART_WriteStrLn("\n\rHello DG4SN");
+  UART_WriteStrLn("\n\rHello world!");
   #endif
 
   DELAY_ms(1500);
@@ -196,7 +186,7 @@ void main(void)
     //Load index 0 = startup value
   {
     tunemem_t tunemem;
-    EEPROM_Read((uint8_t) & ee_tunemem , &tunemem, sizeof (tunemem_t));
+    EEPROM_Read(EEPROM_ADDR(&ee_tunemem), &tunemem, sizeof (tunemem_t));
     UTILI_Set_LC_Relays(tunemem.relays);
   }
   
