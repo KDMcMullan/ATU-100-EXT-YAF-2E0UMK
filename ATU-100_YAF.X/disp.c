@@ -4,6 +4,7 @@
  * Author (presumably): DG4SN
  *
  * Display functions
+ * File:   defines.h
  * (Presumably) created around March 2022
  *
  * Modified 10-Sep-2026 2E0UMK
@@ -23,17 +24,23 @@
  * Modified 01-Nov-2026 2E0UMK
  * Jiggled the LCD clearing code so the MS digit doesn't flash.
  * 
- */
+ * Modified 05-Nov-2026 2E0UMK
+ * Modified DISP_LCD_WriteBitmap() to be a "sparse" write / erase.
+ * Should also be an efficiency improvement by sequential writes.
+ * 
+ * Modified 09-Nov-2026 2E0UMK
+ * Jiggled things to put the LCD in its own module.
+ * Added an I2C specific delay macro in an effort to half the data Tx time.
+ *
+ *
+*/
 
 #include "defines.h"
 #include "font5x8.h"
 #include "fontLCD.h"
 
-#define FONT_WIDTH    5       //5pixel (muliply by 2)
-#define FONT_SPACING (5+1)  //5pixel font + 1 pixel space  (muliply by 2)
-#define RES_X         128  //Display resolution
-#define RES_Y         64
-
+#define DELAY_I2C_CLOCKS 2
+#define DELAY_I2C_us() _delay((unsigned long)(DELAY_I2C_CLOCKS))
 
 uint8_t DISP_i2_addr;
 uint8_t DISP_rotate;
@@ -41,23 +48,23 @@ uint8_t DISP_rotate;
 void I2C_Start(void)
 {
   I2C_SCL_DIR = 1; //SCL=1
-  DELAY_2_us();
+  DELAY_I2C_us();
   I2C_SDA_DIR = 1; //SDA=1
-  DELAY_2_us();
+  DELAY_I2C_us();
   I2C_SDA_DIR = 0; //SDA=0
-  DELAY_2_us();
+  DELAY_I2C_us();
   I2C_SCL_DIR = 0; //SCL=0
-  DELAY_2_us();
+  DELAY_I2C_us();
 }
 
 void I2C_Stop(void)
 {
   I2C_SDA_DIR = 0; //SDA=0
-  DELAY_2_us();
+  DELAY_I2C_us();
   I2C_SCL_DIR = 1; //SCL=1
-  DELAY_2_us();
+  DELAY_I2C_us();
   I2C_SDA_DIR = 1; //SDA=1
-  DELAY_2_us();
+  DELAY_I2C_us();
 
 }
 
@@ -74,21 +81,21 @@ void I2C_Write(uint8_t value)
       I2C_SDA_DIR = 1;
     }
 
-    DELAY_2_us();
+    DELAY_I2C_us();
 
     I2C_SCL_DIR = 1;
-    DELAY_2_us();
+    DELAY_I2C_us();
     I2C_SCL_DIR = 0;
-    DELAY_2_us();
+    DELAY_I2C_us();
     value = (uint8_t) (value << 1);
   }
 
   I2C_SDA_DIR = 1; //ACK
-  DELAY_2_us();
+  DELAY_I2C_us();
   I2C_SCL_DIR = 1;
-  DELAY_2_us();
+  DELAY_I2C_us();
   I2C_SCL_DIR = 0;
-  DELAY_2_us();
+  DELAY_I2C_us();
 }
 
 void DISP_Command(uint8_t command)
@@ -330,349 +337,6 @@ void DISP_Str(uint8_t col, uint8_t row, const char *str, uint8_t invert)
   I2C_Stop();
 
 }
-
-#define LCD_WIDTH       16
-#define LCD_HEIGHT      32
-#define LCD_PAGES       4
-#define LCD_MAX_CHARS   5
-
-static uint8_t DISP_LCD_GetMask(char c)
-{
-    if ((c >= '0') && (c <= '9'))
-    {
-        return LCDdigits[c - '0'];
-    }
-
-    if ((c >= 'A') && (c <= 'F'))
-    {
-        return LCDdigits[c - 'A' + 10];
-    }
-
-    if (c == '.')
-    {
-        return LCD_SEG_DP;
-    }
-
-    return 0;
-}
-
-static void LCD_AddSegment(uint16_t *bitmap,
-                           const LCDRow *segment,
-                           uint8_t count)
-{
-  uint8_t i;
-
-  for (i = 0; i < count; i++)
-  {
-    bitmap[segment[i].row] |= segment[i].bits;
-  }
-}
-
-static void DISP_LCD_GetBitmap(char c, uint16_t *bitmap)
-{
-    uint8_t mask;
-    uint8_t row;
-
-    mask = DISP_LCD_GetMask(c);
-
-    for (row = 0; row < LCD_HEIGHT; row++)
-    {
-        bitmap[row] = 0;
-    }
-
-    if (mask & LCD_SEG_A)
-    {
-        LCD_AddSegment(bitmap, LCD_A,
-                       sizeof(LCD_A) / sizeof(LCD_A[0]));
-    }
-
-    if (mask & LCD_SEG_B)
-    {
-        LCD_AddSegment(bitmap, LCD_B,
-                       sizeof(LCD_B) / sizeof(LCD_B[0]));
-    }
-
-    if (mask & LCD_SEG_C)
-    {
-        LCD_AddSegment(bitmap, LCD_C,
-                       sizeof(LCD_C) / sizeof(LCD_C[0]));
-    }
-
-    if (mask & LCD_SEG_D)
-    {
-        LCD_AddSegment(bitmap, LCD_D,
-                       sizeof(LCD_D) / sizeof(LCD_D[0]));
-    }
-
-    if (mask & LCD_SEG_E)
-    {
-        LCD_AddSegment(bitmap, LCD_E,
-                       sizeof(LCD_E) / sizeof(LCD_E[0]));
-    }
-
-    if (mask & LCD_SEG_F)
-    {
-        LCD_AddSegment(bitmap, LCD_F,
-                       sizeof(LCD_F) / sizeof(LCD_F[0]));
-    }
-
-    if (mask & LCD_SEG_G)
-    {
-        LCD_AddSegment(bitmap, LCD_G,
-                       sizeof(LCD_G) / sizeof(LCD_G[0]));
-    }
-
-    if (mask & LCD_SEG_DP)
-    {
-        LCD_AddSegment(bitmap, LCD_DP,
-                       sizeof(LCD_DP) / sizeof(LCD_DP[0]));
-    }
-
-} // DSP_LCD_GetBitmap
-
-
-static void DISP_LCD_WriteBitmap(uint8_t x,
-                                 uint8_t page,
-                                 const uint16_t *bitmap)
-{
-    uint8_t lcd_page;
-    uint8_t column;
-    uint8_t bit;
-    uint8_t value;
-
-    if (x > (RES_X - LCD_WIDTH))
-    {
-        return;
-    }
-
-    if (page > 4)
-    {
-        return;
-    }
-
-    for (lcd_page = 0; lcd_page < LCD_PAGES; lcd_page++)
-    {
-        DISP_DataAddress(page + lcd_page, x);
-
-        for (column = 0; column < LCD_WIDTH; column++)
-        {
-            value = 0;
-
-            for (bit = 0; bit < 8; bit++)
-            {
-                if (bitmap[(lcd_page * 8) + bit]
-                    & ((uint16_t)0x8000 >> column))
-                {
-                    value |= (uint8_t)(1 << bit);
-                }
-            }
-
-            I2C_Write(value);
-        }
-
-        I2C_Stop();
-    }
-}
-
-
-static void DISP_LCD_Char(uint8_t x, uint8_t page, char c)
-{
-    uint16_t bitmap[LCD_HEIGHT];
-
-    DISP_LCD_GetBitmap(c, bitmap);
-    DISP_LCD_WriteBitmap(x, page, bitmap);
-}
-
-
-static void DISP_LCD_CharDP(uint8_t x, uint8_t page, char c)
-{
-    uint16_t bitmap[LCD_HEIGHT];
-    uint16_t dp_bitmap[LCD_HEIGHT];
-    uint8_t row;
-
-    DISP_LCD_GetBitmap(c, bitmap);
-    DISP_LCD_GetBitmap('.', dp_bitmap);
-
-    for (row = 0; row < LCD_HEIGHT; row++)
-    {
-        bitmap[row] |= dp_bitmap[row];
-    }
-
-    DISP_LCD_WriteBitmap(x, page, bitmap);
-}
-
-
-void DISP_LCD(uint8_t x,      // x-coordinate of units digit, in pixels
-              uint8_t page,   // y in pages, range 0..7, usually 0 or 4
-              int16_t n,      // input value
-              uint8_t scale,  // decimal scaling: 0 = /1, 1 = /10, 2 = /100
-              uint8_t d,      // number of decimal places to display
-              uint8_t maxint) // maximum digits left of decimal point
-{
-    uint32_t magnitude;
-    uint32_t divisor;
-    uint32_t integer_part;
-    uint32_t fraction_part;
-    uint32_t scale_factor;
-    uint8_t digits;
-    uint8_t i;
-    uint8_t digit;
-    uint8_t negative;
-    int32_t signed_value;
-    int32_t char_x;
-
-    if (page > 4)
-    {
-        return;
-    }
-
-    /*
-     * Convert to magnitude safely, including n == -32768.
-     */
-    signed_value = n;
-    negative = (signed_value < 0);
-
-    if (negative)
-    {
-        signed_value = -signed_value;
-    }
-
-    magnitude = (uint32_t)signed_value;
-
-    /*
-     * Calculate 10^scale.
-     */
-    scale_factor = 1;
-
-    for (i = 0; i < scale; i++)
-    {
-        scale_factor *= 10UL;
-    }
-
-    /*
-     * Split the input into integer and fractional portions.
-     */
-    integer_part = magnitude / scale_factor;
-    fraction_part = magnitude % scale_factor;
-
-    /*
-     * Count the integer digits. Zero must occupy one digit.
-     */
-    digits = 1;
-    divisor = 1;
-
-    while (integer_part >= 10UL)
-    {
-        integer_part /= 10UL;
-        digits++;
-        divisor *= 10UL;
-    }
-
-    /*
-     * Clear unused integer positions and the sign position.
-     * Do not erase digits which are about to be drawn.
-     */
-    for (i = digits; i <= maxint; i++)
-    {
-        char_x = (int32_t)x - ((int32_t)i * LCD_WIDTH);
-
-        if (char_x >= 0 &&
-            char_x <= (int32_t)(RES_X - LCD_WIDTH))
-        {
-            DISP_LCD_Char((uint8_t)char_x, page, ' ');
-        }
-    }
-    
-    /*
-     * Restore the integer portion for digit extraction.
-     */
-    integer_part = magnitude / scale_factor;
-
-    /*
-     * Start with the most significant integer digit.
-     */
-    char_x = (int32_t)x - ((int32_t)(digits - 1) * LCD_WIDTH);
-
-    for (i = 0; i < digits; i++)
-    {
-        digit = (uint8_t)(integer_part / divisor);
-        integer_part %= divisor;
-
-        if (char_x >= 0 &&
-            char_x <= (int32_t)(RES_X - LCD_WIDTH))
-        {
-            if (i == (digits - 1))
-            {
-                DISP_LCD_CharDP((uint8_t)char_x,
-                                page,
-                                (char)('0' + digit));
-            }
-            else
-            {
-                DISP_LCD_Char((uint8_t)char_x,
-                              page,
-                              (char)('0' + digit));
-            }
-        }
-
-        char_x += LCD_WIDTH;
-
-        if (divisor > 1UL)
-        {
-            divisor /= 10UL;
-        }
-    }
-
-    /*
-     * Display fractional digits to the right of the units digit.
-     * Missing decimal places are zero-padded.
-     */
-    for (i = 0; i < d; i++)
-    {
-        char_x = (int32_t)x + ((int32_t)(i + 1) * LCD_WIDTH);
-
-        if (char_x >= 0 &&
-            char_x <= (int32_t)(RES_X - LCD_WIDTH))
-        {
-            uint32_t fraction_divisor = 1UL;
-            uint8_t j;
-
-            if (i < scale)
-            {
-                for (j = 0; j < (uint8_t)(scale - i - 1); j++)
-                {
-                    fraction_divisor *= 10UL;
-                }
-
-                digit = (uint8_t)(fraction_part / fraction_divisor);
-                fraction_part %= fraction_divisor;
-            }
-            else
-            {
-                digit = 0;
-            }
-
-            DISP_LCD_Char((uint8_t)char_x,
-                          page,
-                          (char)('0' + digit));
-        }
-    }
-
-    /*
-     * Display a minus sign immediately to the left of the number.
-     * Omit it if there is insufficient space.
-     */
-    if (negative)
-    {
-        char_x = (int32_t)x - ((int32_t)digits * LCD_WIDTH);
-
-        if (char_x >= 0 &&
-            char_x <= (int32_t)(RES_X - LCD_WIDTH))
-        {
-            DISP_LCD_Char((uint8_t)char_x, page, '-');
-        }
-    }
-} // DISP_LCD
 
 
 /**
