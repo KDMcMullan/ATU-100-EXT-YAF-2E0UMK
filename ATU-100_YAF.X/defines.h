@@ -304,7 +304,7 @@ global_t extern global;
 
 const char str_ATU100EXT[] = "ATU-100";
 const char str_YAF[]       = "EXT-YAF";
-const char str_Version[]   =  "V0.69.5"; // 2E0UMK - LCD complete
+const char str_Version[]   =  "V0.69.6"; // 2E0UMK - LCD complete
 const char str_YetAnother[] = "YetAnother";
 const char str_Firmware[] = "Firmware";
 const char str_Hardware[] = "Hardware";
