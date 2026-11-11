@@ -56,6 +56,13 @@
  * It's fixed no by using direct addressing, which is a shame when we have an
  * index value asking to be used. Seems to be working.
  * 
+ * Modified 04-Nov-2026 2E0UMK
+ * Fixed issue with block after "Hardware" in menu list.
+ * Fixed issue with flickering "R" in PWR".
+ * 
+ * Modified 06-Nov-2026 2E0UMK
+ * Reworked Debug menu, adding a new switch to facilitate a simulated RF input.
+ * 
  * To-Do:
  * Not a functional issue, but for readability, refactor MENU_var.memory such
  * that it doesn't appear to be shared by the Hardware functions and the Memory
@@ -70,8 +77,8 @@
 
 #define MENU_SUB_TIMEOUT   500 // x 10ms
 
-#define UPDATE_PERIODE       10 // x 10ms
-#define TUNE_UPDATE_PERIODE  50 // x 10ms
+#define UPDATE_PERIOD        10 // x 10ms
+#define TUNE_UPDATE_PERIOD   50 // x 10ms
 
 #define CAL_STEP0_MAX    100 //  x 0.1W = 10W
 #define CAL_STEP1_MAX   1000 //  x 0.1W = 100W
@@ -108,7 +115,8 @@ static union
   struct
   {
     uint8_t cursor;
-    uint8_t enable;
+    uint8_t verbose;
+    uint8_t sim_rf;
   } debug;
 
   struct
@@ -121,7 +129,7 @@ static union
   struct
   {
     uint8_t cursor;
-    uint16_t relais_backup;
+    uint16_t relays_backup;
     uint8_t update_cnt;
   } reltest;
 
@@ -135,7 +143,7 @@ static union
   
   struct
   {
-    uint8_t cursor;     // 0 = Sleep, 1 = Delay, 2 = RFwake, 3 = RlySav, 4 = Save, 5 = Esc
+    uint8_t cursor;     // 0 = Delay, 1 = RFwake, 2 = RlySav, 3 = Save, 4 = Esc
     int16_t delay_sec;  // 0 = OFF, >0 = Sleep timeout
     uint8_t wake_rf;    // 1 = Y, 0 = N
     uint8_t relay_save; // 1 = Y, 0 = N
@@ -147,7 +155,7 @@ static union
     int16_t old_pwr;
     int16_t sleep_timer;
     uint8_t counter_1sec;
-    uint16_t relais_backup;
+    uint16_t relays_backup;
   } main;
 
   struct
@@ -212,7 +220,7 @@ static union
 static uint8_t MENU_cursor;
 
 
-//Prototypes
+// Prototypes
 
 static void MENU_Main_Init(void);
 static void MENU_Main_Run(void);
@@ -298,9 +306,8 @@ const menu_t menuCal      ={str_MENU_Cal, MENU_CalPWR_Init, MENU_CalPWR_Run};
 
 const menu_t menuDebug = {str_MENU_Debug, MENU_Debug_Init, MENU_Debug_Run};
 
-#define HARDWARE_PROFILE_ITEMS  2 // Default and QRP for now
-
-const menu_t menuHardware = {str_Hardware, MENU_Hardware_Init, MENU_Hardware_Run};
+#define HARDWARE_PROFILE_ITEMS  2 // default, QRP, and Esc (which doesn't count) for now
+const menu_t menuHardware = {str_MENU_Hardware, MENU_Hardware_Init, MENU_Hardware_Run};
 
 #define MENU_SUBTOP_ITEMS    6
 const menu_t* ptrSubTopMenu[MENU_SUBTOP_ITEMS] = { &menuLoad, &menuBypass, &menuSubSetup, &menuSave, &menuReset, &menuAbout};
@@ -318,16 +325,14 @@ static void MENU_Main_Update(void)
   if (global.flags & FLAG_DISPLAY_LARGE_MASK)
   {
       
-    // 128 pixel wide display, 16 pixels per character, 2 decimal places,
-    // so the units is displayed at 127-16*3 = 80 
+    // 128 pixel wide display, 24 pixels per character, 2 decimal places,
+    // so the units is displayed at 127-24*3 = 56th position = 55.
+    // Ideally, I wanted Power to have a 3 digit integer part, but it
+    // interferes with the display of the "PWR" label.
       
-    DISP_LCD(79, 0, global.PWR, 1, 1, 3); // scaling, dp, integer part
-    DISP_LCD(79, 4, global.SWR, 2, 2, 2);     
+    DISP_LCD(55, 0, global.PWR, 1, 1, 3); // scaling, dp, integer part
+    DISP_LCD(55, 4, global.SWR, 2, 2, 2);
 
-    // Below is a temporary hack to stop the "R" in "PWR" getting partially
-    // over-written by the erasure of the leftmost LCD digit.
-    DISP_Str(0, 0, str_PWR, 0);
-    
     // Display A and / or B for Auto / Bypass
     if (global.bypass_enable == TRUE)
     { DISP_Str(0, 3, "B", 1); } 
@@ -344,8 +349,8 @@ static void MENU_Main_Update(void)
   const char *p_str = NULL;
   char str[7];
  
-  DISP_PWR(4, 0, global.PWR, 0);
-  DISP_SWR(4, 1, global.SWR, 0);
+  DISP_PWR(6, 0, global.PWR, 0);
+  DISP_SWR(6, 1, global.SWR, 0);
   
   if (global.cap_sw)
   {
@@ -355,31 +360,30 @@ static void MENU_Main_Update(void)
 
   if (global.bypass_enable == TRUE)
   {
-//    UTILI_Int2Str(MENU_var.cal.step, str, sizeof(str)); // not sure why this was in here
     DISP_Str(0, 3, str_MENU_Bypass, 1);
   } 
   else
   {
     if (global.flags & FLAG_DEBUG_MASK)
     {
-      UTILI_Int2Str(global.adc_f_mV, str, sizeof(str));
       DISP_Str(0, c_row, "FWD=", 0); // display ADC on capacitor row
+      UTILI_Int2Str(global.adc_f_mV, str, sizeof(str));
       DISP_Str(4, c_row, str, 0);
 
-      UTILI_Int2Str(global.adc_r_mV, str, sizeof(str));
       DISP_Str(0, l_row, "REV=", 0); // display ADC on inductor row
+      UTILI_Int2Str(global.adc_r_mV, str, sizeof(str));
       DISP_Str(4, l_row, str, 0);
 
     }
     else
     {
-      DISP_Str(0, c_row, str_C_, 0); // display capacitance on capacitor row
+      DISP_Str(2, c_row, "C", 0); // display capacitance on capacitor row
       UTILI_GetCapValueStr(str, sizeof(str));
-      DISP_Str(2, c_row, str, 0);
+      DISP_Str(3, c_row, str, 0);
 
-      DISP_Str(0, l_row, str_L_, 0); // display inductance on inductance row
+      DISP_Str(2, l_row, "L", 0); // display inductance on inductance row
       UTILI_GetIndValueStr(str, sizeof(str));
-      DISP_Str(2, l_row, str, 0);
+      DISP_Str(3, l_row, str, 0);
     }
   }
   
@@ -415,13 +419,13 @@ static void MENU_Main_Init(void)
   MENU_var.main.old_pwr = -1; //Dummy value
   MENU_var.main.counter_1sec = 0;
   MENU_var.main.sleep_timer = 0;
-  MENU_var.main.relais_backup = UTILI_Get_LC_Relays();
+  MENU_var.main.relays_backup = UTILI_Get_LC_Relays();
 }
 
 
 static void MENU_Main_Wakeup(void)
 {
-   UTILI_Set_LC_Relays(MENU_var.main.relais_backup);
+   UTILI_Set_LC_Relays(MENU_var.main.relays_backup);
    MENU_Main_Init(); //Restore display
 }
 
@@ -465,7 +469,6 @@ static void MENU_Main_Run(void)
           if (global.flags & FLAG_RELAY_SAVE_MASK)
           {
             UTILI_Set_LC_Relays(0); // Release relays to save battery
-//            DISP_Str(DISP_COL_CENTER, 1, str_sleeping, 0);
           }
         }
       }
@@ -490,10 +493,10 @@ static void MENU_Main_Run(void)
   if ((MENU_var.main.sleep_timer < global.sleep_delay_sec) || (global.sleep_enable != TRUE)) 
   {
     MENU_var.main.update_cnt++;
-    if (MENU_var.main.update_cnt == UPDATE_PERIODE)
+    if (MENU_var.main.update_cnt == UPDATE_PERIOD)
     {
       MENU_var.main.update_cnt = 0;
-      if ((global.PWR > 0) || (MENU_var.main.old_pwr != 0)) //avoid display refresh when receiving
+      if ((global.PWR > 0) || (MENU_var.main.old_pwr != 0)) // avoid display refresh when receiving
       {
         MENU_var.main.old_pwr =  global.PWR;
         MENU_Main_Update();
@@ -511,13 +514,13 @@ static void MENU_Main_Run(void)
     }
     
     
-    //short press -> 
-    if (BUTTON_count == BUTTON_RELEASED)
+
+    if (BUTTON_count == BUTTON_RELEASED) // short press
     {
-      if(global.bypass_enable == TRUE) //-> bypass reset
+      if(global.bypass_enable == TRUE) // bypass reset
       {
         global.bypass_enable = FALSE;
-        UTILI_Set_LC_Relays(global.bypass_save_relais);
+        UTILI_Set_LC_Relays(global.bypass_save_relays);
       }
       else // -> Tuning
       {  
@@ -532,7 +535,7 @@ static void MENU_Main_Run(void)
       if(global.bypass_enable == TRUE) //-> bypass reset
       {
         global.bypass_enable = FALSE;
-        UTILI_Set_LC_Relays(global.bypass_save_relais);
+        UTILI_Set_LC_Relays(global.bypass_save_relays);
       }
       else //-> sub menu
       {
@@ -564,7 +567,7 @@ static void MENU_Reset_Init(void)
 static void MENU_Bypass_Init(void)
 {
   global.bypass_enable = TRUE;
-  global.bypass_save_relais = UTILI_Get_LC_Relays(); //Save current relays
+  global.bypass_save_relays = UTILI_Get_LC_Relays(); //Save current relays
   UTILI_Set_LC_Relays(0); //reset relays
   MENU_Init();
 }
@@ -601,12 +604,11 @@ static void MENU_Tune_Init(void)
 static void MENU_Tune_Run(void)
 {
 
-  //Tune 
-  TUNE_Run();
+  TUNE_Run(); // perform the tuning
 
   //Display update
   MENU_var.tune.update_cnt++;
-  if (MENU_var.tune.update_cnt == TUNE_UPDATE_PERIODE)
+  if (MENU_var.tune.update_cnt == TUNE_UPDATE_PERIOD)
   {
     MENU_var.tune.update_cnt = 0;
     MENU_Tune_Update();
@@ -680,8 +682,7 @@ static void MENU_TParam_Run(void)
   {
     BUTTON_count -= BUTTON_LONG_REPEAT_DELAY_MAX;
     
-    //cursor at "Auto"
-    if(MENU_var.tparam.cursor == 0)
+    if(MENU_var.tparam.cursor == 0) // cursor at "Auto"
     {
       if(MENU_var.tparam.auto_enable == TRUE)
       {
@@ -695,8 +696,7 @@ static void MENU_TParam_Run(void)
     }    
     
     
-    //cursor at "Start"
-    if(MENU_var.tparam.cursor == 1)
+    if(MENU_var.tparam.cursor == 1) // cursor at "Start"
     {
       MENU_var.tparam.auto_swr += 5; // step SWR 0.05
       if(MENU_var.tparam.auto_swr > TUNE_AUTO_MAX_SWR)
@@ -704,10 +704,9 @@ static void MENU_TParam_Run(void)
         MENU_var.tparam.auto_swr = TUNE_AUTO_MIN_SWR;
       }
       MENU_TParam_Update();
-    }
-      
-    //cursor at "Stop"
-    if(MENU_var.tparam.cursor == 2)
+    }  
+    
+    if(MENU_var.tparam.cursor == 2) // cursor at "Stop"
     {
       MENU_var.tparam.stop_swr += 5; // step SWR 0.05
       if(MENU_var.tparam.stop_swr > TUNE_STOP_MAX_SWR)
@@ -717,20 +716,20 @@ static void MENU_TParam_Run(void)
       MENU_TParam_Update();
     }
     
-    if (MENU_var.tparam.cursor == 3) //cursor at "Save"
+    if (MENU_var.tparam.cursor == 3) // cursor at "Save"
     {
       global.tune_auto_enable = MENU_var.tparam.auto_enable;
       global.tune_auto_swr = MENU_var.tparam.auto_swr;
       global.tune_stop_swr = MENU_var.tparam.stop_swr;
       
-      EEPROM_Write((uint8_t)&ee_tune_stop_swr, &global.tune_stop_swr, sizeof(ee_tune_stop_swr));
-      EEPROM_Write((uint8_t)&ee_tune_auto_swr, &global.tune_auto_swr, sizeof(ee_tune_auto_swr));
-      EEPROM_Write((uint8_t)&ee_tune_auto_enable, &global.tune_auto_enable, sizeof(ee_tune_auto_enable));
+      EEPROM_Write(EEPROM_ADDR(&ee_tune_stop_swr), &global.tune_stop_swr, sizeof(ee_tune_stop_swr));
+      EEPROM_Write(EEPROM_ADDR(&ee_tune_auto_swr), &global.tune_auto_swr, sizeof(ee_tune_auto_swr));
+      EEPROM_Write(EEPROM_ADDR(&ee_tune_auto_enable), &global.tune_auto_enable, sizeof(ee_tune_auto_enable));
       MENU_Init();
       return;
     } 
 
-    if (MENU_var.tparam.cursor == 4) //cursor at "ESC"
+    if (MENU_var.tparam.cursor == 4) // cursor at "ESC"
     {
       MENU_Init();
       return;
@@ -770,21 +769,23 @@ static void MENU_Hardware_Update(void)
                     break;
             }
 
-            DISP_Str(0, i + 1, profile_name, (index == MENU_var.memory.cursor));
+            DISP_Str(0, i, profile_name, (index == MENU_var.memory.cursor));
         }
         else
         {
             // Clear unused rows
-            DISP_Str(0, i + 1, str_SpaceLine, 0);
+            DISP_Str(0, i, str_SpaceLine, 0);
         }
-    }
+    } // for
+
+    DISP_Str(7, 3, str_Esc, (MENU_var.memory.cursor==2));
+    
 } // MENU_Hardware_Update
 
 
 static void MENU_Hardware_Init(void)
 {
     DISP_Clr();
-    DISP_Str(0, 0, str_Hardware, 0);
 
     MENU_var.memory.cursor = 0;
     MENU_var.memory.top = 0;
@@ -812,19 +813,11 @@ static void MENU_Hardware_Run(void)
     {
         MENU_var.memory.timeout = 0;
 
-        if ((MENU_var.memory.cursor + 1) < HARDWARE_PROFILE_ITEMS)
-        {
-            MENU_var.memory.cursor++;
+        MENU_var.memory.cursor++;
 
-            // Scroll when selection moves beyond the third visible row
-            if (MENU_var.memory.cursor >= (MENU_var.memory.top + 3))
-            {
-                MENU_var.memory.top++;
-            }
-        }
-        else
+        // Scroll when selection moves beyond the third visible row
+        if (MENU_var.memory.cursor > HARDWARE_PROFILE_ITEMS)
         {
-            // Wrap around to the first profile
             MENU_var.memory.cursor = 0;
             MENU_var.memory.top = 0;
         }
@@ -835,7 +828,12 @@ static void MENU_Hardware_Run(void)
     // Long press: select hardware profile
     if (BUTTON_count == BUTTON_LONG_PRESSED)
     {
-        if (MENU_var.memory.cursor == 0)
+        if (MENU_var.memory.cursor == 2) // Esc
+        {
+          MENU_Init();
+          return;
+        }
+        if (MENU_var.memory.cursor == 0) // implicit else
         {
             // Standard hardware calibration
             global.cal_point[0] = DEF_CAL_P0_STD;
@@ -853,19 +851,19 @@ static void MENU_Hardware_Run(void)
         }
 
         // Save calibration settings to EEPROM
-        EEPROM_Write((uint8_t)&ee_cal_point_0,
+        EEPROM_Write(EEPROM_ADDR(&ee_cal_point_0),
                      &global.cal_point[0],
                      sizeof(ee_cal_point_0));
 
-        EEPROM_Write((uint8_t)&ee_cal_point_1,
+        EEPROM_Write(EEPROM_ADDR(&ee_cal_point_1),
                      &global.cal_point[1],
                      sizeof(ee_cal_point_1));
 
-        EEPROM_Write((uint8_t)&ee_cal_offset,
+        EEPROM_Write(EEPROM_ADDR(&ee_cal_offset),
                      &global.cal_offset,
                      sizeof(ee_cal_offset));
 
-        EEPROM_Write((uint8_t)&ee_cal_gain,
+        EEPROM_Write(EEPROM_ADDR(&ee_cal_gain),
                      &global.cal_gain,
                      sizeof(ee_cal_gain));
 
@@ -994,9 +992,9 @@ static void MENU_Sleep_Run(void)
         global.flags &= ~FLAG_RELAY_SAVE_MASK;
 
       // Write changes to EEPROM
-      EEPROM_Write((uint8_t)&ee_sleep_delay_sec, &global.sleep_delay_sec, sizeof(ee_sleep_delay_sec));
-      EEPROM_Write((uint8_t)&ee_sleep_enable, &global.sleep_enable, sizeof(ee_sleep_enable));
-      EEPROM_Write((uint8_t)&ee_flags, &global.flags, sizeof(ee_flags));
+      EEPROM_Write(EEPROM_ADDR(&ee_sleep_delay_sec), &global.sleep_delay_sec, sizeof(ee_sleep_delay_sec));
+      EEPROM_Write(EEPROM_ADDR(&ee_sleep_enable), &global.sleep_enable, sizeof(ee_sleep_enable));
+      EEPROM_Write(EEPROM_ADDR(&ee_flags), &global.flags, sizeof(ee_flags));
 
       MENU_Init();
       return;
@@ -1125,7 +1123,7 @@ static void MENU_Display_Run(void)
                 global.flags &= ~FLAG_DISPLAY_LARGE_MASK;
             }
 
-            EEPROM_Write((uint8_t)&ee_flags,
+            EEPROM_Write(EEPROM_ADDR(&ee_flags),
                          &global.flags,
                          sizeof(global.flags));
 
@@ -1149,22 +1147,19 @@ static void MENU_Display_Run(void)
 
 static void MENU_Debug_Update(void)
 {
-    if (MENU_var.debug.enable)
-    {
-        DISP_Str(0, 0, str_On,
-                 MENU_var.debug.cursor == 0);
-    }
-    else
-    {
-        DISP_Str(0, 0, str_Off,
-                 MENU_var.debug.cursor == 0);
-    }
+    DISP_Str(0, 0, "Vrbose", 0);
+    DISP_Str(7, 0, MENU_var.debug.verbose ? str_On : str_Off,
+             MENU_var.debug.cursor == 0);
 
-    DISP_Str(0, 3, str_Save,
+    DISP_Str(0, 1, "SimRF", 0);
+    DISP_Str(7, 1, MENU_var.debug.sim_rf ? str_On : str_Off,
              MENU_var.debug.cursor == 1);
 
-    DISP_Str(7, 3, str_Esc,
+    DISP_Str(0, 3, str_Save,
              MENU_var.debug.cursor == 2);
+
+    DISP_Str(7, 3, str_Esc,
+             MENU_var.debug.cursor == 3);
 }
 
 
@@ -1175,10 +1170,11 @@ static void MENU_Debug_Init(void)
 
     MENU_var.debug.cursor = 0;
 
-    MENU_var.debug.enable =
+    MENU_var.debug.verbose =
         (global.flags & FLAG_DEBUG_MASK) != 0;
 
-//    DISP_Str(0, 0, "Debug", 0);
+    MENU_var.debug.sim_rf =
+        (global.flags & FLAG_SIM_ADC_MASK) != 0;
 
     MENU_Debug_Update();
 }
@@ -1190,7 +1186,7 @@ static void MENU_Debug_Run(void)
     {
         MENU_var.debug.cursor++;
 
-        if (MENU_var.debug.cursor > 2)
+        if (MENU_var.debug.cursor > 3)
         {
             MENU_var.debug.cursor = 0;
         }
@@ -1202,43 +1198,54 @@ static void MENU_Debug_Run(void)
     {
         BUTTON_count -= BUTTON_LONG_REPEAT_DELAY_MAX;
 
-        // Cursor at Debug On/Off
+        // Cursor at Vrbose On/Off
         if (MENU_var.debug.cursor == 0)
         {
-            MENU_var.debug.enable =
-                !MENU_var.debug.enable;
+            MENU_var.debug.verbose =
+                !MENU_var.debug.verbose;
+
+            MENU_Debug_Update();
+        }
+
+        // Cursor at SimRF On/Off
+        if (MENU_var.debug.cursor == 1)
+        {
+            MENU_var.debug.sim_rf =
+                !MENU_var.debug.sim_rf;
 
             MENU_Debug_Update();
         }
 
         // Cursor at Save
-        if (MENU_var.debug.cursor == 1)
+        if (MENU_var.debug.cursor == 2)
         {
-            if (MENU_var.debug.enable)
-            {
+            if (MENU_var.debug.verbose)
                 global.flags |= FLAG_DEBUG_MASK;
-            }
             else
-            {
                 global.flags &= ~FLAG_DEBUG_MASK;
-            }
 
-            EEPROM_Write((uint8_t)&ee_flags,
+            if (MENU_var.debug.sim_rf)
+                global.flags |= FLAG_SIM_ADC_MASK;
+            else
+                global.flags &= ~FLAG_SIM_ADC_MASK;
+
+            EEPROM_Write(EEPROM_ADDR(&ee_flags),
                          &global.flags,
-                         sizeof(global.flags));
+                         sizeof(ee_flags));
 
             MENU_Init();
             return;
         }
 
         // Cursor at Esc
-        if (MENU_var.debug.cursor == 2)
+        if (MENU_var.debug.cursor == 3)
         {
             MENU_Init();
             return;
         }
     }
-} // static void MENU_Debug_Run()
+} // MENU_Debug_Run()
+
 
 //-- Menu_RelTest  --------------------------------------------------------------------------------------------------
 
@@ -1284,7 +1291,7 @@ static void MENU_RelTest_Init(void)
   DISP_Clr();
   BUTTON_Reset();
   MENU_var.reltest.cursor = 0;
-  MENU_var.reltest.relais_backup = UTILI_Get_LC_Relays();
+  MENU_var.reltest.relays_backup = UTILI_Get_LC_Relays();
   MENU_var.reltest.update_cnt = 0;
   global.cap_sw = 0;
   global.cap_relays = 0;
@@ -1297,7 +1304,7 @@ static void MENU_RelTest_Run(void)
 {
 
   MENU_var.reltest.update_cnt++;
-  if (MENU_var.reltest.update_cnt == UPDATE_PERIODE)
+  if (MENU_var.reltest.update_cnt == UPDATE_PERIOD)
   {
     MENU_var.reltest.update_cnt = 0;
     UTILI_CalPWR();
@@ -1366,7 +1373,7 @@ static void MENU_RelTest_Run(void)
     if (MENU_var.reltest.cursor == 3) //cursor at "Esc"
     {
       //Restore C/L settings
-      UTILI_Set_LC_Relays(MENU_var.reltest.relais_backup);
+      UTILI_Set_LC_Relays(MENU_var.reltest.relays_backup);
       MENU_Init();
       return;
     } 
@@ -1579,39 +1586,37 @@ static void MENU_CalPWR_Run(void)
       {
         // test for insane calibration values
 
-//        if ((MENU_var.cal.adc_value[1] > MENU_var.cal.adc_value[0]) &&
-//           (MENU_var.cal.cal_point[1] > MENU_var.cal.cal_point[0]))
-//        {
+        if ((MENU_var.cal.adc_value[1] > MENU_var.cal.adc_value[0]) &&
+           (MENU_var.cal.cal_point[1] > MENU_var.cal.cal_point[0]))
+        {
 
-        // Copy selected calibration points
-        global.cal_point[0] = MENU_var.cal.cal_point[0];
-        global.cal_point[1] = MENU_var.cal.cal_point[1];
+            // Copy selected calibration points
+            global.cal_point[0] = MENU_var.cal.cal_point[0];
+            global.cal_point[1] = MENU_var.cal.cal_point[1];
 
-        // Calculate calibration coefficients
-        int16_t y1 = UTILI_deciWatt_to_centiVolt(global.cal_point[0]);
-        int16_t y2 = UTILI_deciWatt_to_centiVolt(global.cal_point[1]);
+            // Calculate calibration coefficients
+            int16_t y1 = UTILI_deciWatt_to_centiVolt(global.cal_point[0]);
+            int16_t y2 = UTILI_deciWatt_to_centiVolt(global.cal_point[1]);
 
-        global.cal_gain = (int16_t) (((y2 - y1) * (int32_t) CAL_GAIN_MULTIPLIER) /
-                         (MENU_var.cal.adc_value[1] - MENU_var.cal.adc_value[0]));
+            global.cal_gain = (int16_t) (((y2 - y1) * (int32_t) CAL_GAIN_MULTIPLIER) /
+                             (MENU_var.cal.adc_value[1] - MENU_var.cal.adc_value[0]));
 
-        global.cal_offset = y1 - (int16_t) (((int32_t) global.cal_gain *
-                              MENU_var.cal.adc_value[0]) / CAL_GAIN_MULTIPLIER);
+            global.cal_offset = y1 - (int16_t) (((int32_t) global.cal_gain *
+                                  MENU_var.cal.adc_value[0]) / CAL_GAIN_MULTIPLIER);
 
-        // Save new calibration values to EEPROM
-        EEPROM_Write((uint8_t)&ee_cal_point_0, &global.cal_point[0], sizeof (ee_cal_point_0));
-        EEPROM_Write((uint8_t)&ee_cal_point_1, &global.cal_point[1], sizeof (ee_cal_point_1));
-        EEPROM_Write((uint8_t)&ee_cal_offset, &global.cal_offset, sizeof (ee_cal_offset));
-        EEPROM_Write((uint8_t)&ee_cal_gain, &global.cal_gain, sizeof (ee_cal_gain));
+            // Save new calibration values to EEPROM
+            EEPROM_Write(EEPROM_ADDR(&ee_cal_point_0), &global.cal_point[0], sizeof (ee_cal_point_0));
+            EEPROM_Write(EEPROM_ADDR(&ee_cal_point_1), &global.cal_point[1], sizeof (ee_cal_point_1));
+            EEPROM_Write(EEPROM_ADDR(&ee_cal_offset), &global.cal_offset, sizeof (ee_cal_offset));
+            EEPROM_Write(EEPROM_ADDR(&ee_cal_gain), &global.cal_gain, sizeof (ee_cal_gain));
 
-//        }
-//        else
-//        {
-//          DISP_Clr();
-//          DISP_Str(0, 1, "CAL ERROR", 0);
-//          __delay_ms(2000);
-//        }
-
-
+        }
+        else
+        {
+          DISP_Clr();
+          DISP_Str(0, 1, "CAL ERROR", 0);
+          __delay_ms(2000);
+        }
 
         if (global.flags & FLAG_DEBUG_MASK)
         {
@@ -1676,9 +1681,9 @@ static void MENU_SubTop_Init(void)
   DISP_Clr();
   BUTTON_Reset();
 
-  MENU_var.sub.cursor =0;
-  MENU_var.sub.top=0;
-  MENU_var.sub.timeout =0;
+  MENU_var.sub.cursor = 0;
+  MENU_var.sub.top = 0;
+  MENU_var.sub.timeout = 0;
   MENU_var.sub.items = MENU_SUBTOP_ITEMS;
   MENU_var.sub.ptrMenu = ptrSubTopMenu;
   
@@ -1695,12 +1700,11 @@ static void MENU_Sub_Update(void)
   
   for(uint8_t i = 0; i < 4; i++)
   {
-//    DISP_Str(DISP_COL_CENTER, i, MENU_var.sub.ptrMenu[pos]->title, (pos == MENU_var.sub.cursor));
-    DISP_Str(0, i, MENU_var.sub.ptrMenu[pos]->title, (pos == MENU_var.sub.cursor));
+    DISP_Str(0, i, MENU_var.sub.ptrMenu[pos]->title,
+             (pos == MENU_var.sub.cursor));
     pos++;
   }
 }
-
 
 
 static void MENU_Sub_Run(void)
@@ -1722,30 +1726,30 @@ static void MENU_Sub_Run(void)
     
     switch (cursor_pos)
     {
-      //cursor in the 1st or in the 3rd line
-    case 0:
-    case 2:
-      MENU_var.sub.cursor++;
-      break;
-      
-      //cursor in the 2nd. line
-    case 1:
-      //Are more than 4 items ahead -> increase top position and cursor
-      //if not only move cursor to 3rd line
-      if((MENU_var.sub.top +4) < MENU_var.sub.items)
-      {
-        MENU_var.sub.top++;
-      }
-      MENU_var.sub.cursor++;
-      break; 
-   
-    //cursor in the 4th line
-    //case 3:
-    default:  
-      //Redraw menu from top
-      MENU_var.sub.top=0;
-      MENU_var.sub.cursor=0;
-      break;
+        //cursor in the 1st or in the 3rd line
+      case 0:
+      case 2:
+        MENU_var.sub.cursor++;
+        break;
+
+        //cursor in the 2nd. line
+      case 1:
+        //Are more than 4 items ahead -> increase top position and cursor
+        //if not only move cursor to 3rd line
+        if((MENU_var.sub.top +4) < MENU_var.sub.items)
+        {
+          MENU_var.sub.top++;
+        }
+        MENU_var.sub.cursor++;
+        break; 
+
+      //cursor in the 4th line
+      //case 3:
+      default:  
+        //Redraw menu from top
+        MENU_var.sub.top=0;
+        MENU_var.sub.cursor=0;
+        break;
     }
       
     MENU_Sub_Update();
@@ -1781,7 +1785,7 @@ static void MENU_Memory_Update(void)
     DISP_Str(0, i+1,str_index,(index == MENU_var.memory.cursor));
     
     //Load item from eeprom
-    EEPROM_Read((uint8_t)&ee_tunemem + (sizeof(tunemem_t) * index) , &memory, sizeof(tunemem_t));
+    EEPROM_Read(EEPROM_ADDR(&ee_tunemem) + (sizeof(tunemem_t) * index) , &memory, sizeof(tunemem_t));
     memory.bytes[sizeof(tunemem_t)] =0;     //Terminat string 
     DISP_Str(2,i+1,memory.tunemem.str_name, (index == MENU_var.memory.cursor));        
   }
@@ -1880,9 +1884,9 @@ static void MENU_Memory_Run(void)
     }
     else
     {
-      //Load
+      // Load
       tunemem_t tunemem;
-      EEPROM_Read((uint8_t) & ee_tunemem + (sizeof (tunemem_t) * MENU_var.memory.cursor) , &tunemem, sizeof (tunemem_t));
+      EEPROM_Read(EEPROM_ADDR(&ee_tunemem) + (sizeof (tunemem_t) * MENU_var.memory.cursor) , &tunemem, sizeof (tunemem_t));
       UTILI_Set_LC_Relays(tunemem.relays);
       MENU_Init();
       return;
@@ -1899,20 +1903,18 @@ static void MENU_NameEdit_Update(void)
   uint8_t i;
   
   
-  //name
+  // name
   for(i=0; i<TUNEMEM_STRLEN; i++)
   {
     DISP_Char(2+i, 0, MENU_var.nameedit.tunemem.str_name[i],(MENU_var.nameedit.cursor == i));
   }
   
   
-  //char list
-  
+  // char list
   
   
   if(MENU_var.nameedit.cursor < TUNEMEM_STRLEN)
   {
-    
     
     //find the position of the char under the cursor
     char c = MENU_var.nameedit.tunemem.str_name[MENU_var.nameedit.cursor];
@@ -1935,12 +1937,10 @@ static void MENU_NameEdit_Update(void)
       DISP_Char(2+x,1,NameEditChar[i],0);
     }
   }
-  else //is cursor at save or ESC print empty line
+  else // is cursor at save or ESC print empty line
   {
     DISP_Str(0, 1, str_SpaceLine,0);
   }
-  
- 
   
    DISP_Str(0,3,str_Save, (MENU_var.nameedit.cursor == TUNEMEM_STRLEN) );
    DISP_Str(7,3,str_Esc, (MENU_var.nameedit.cursor == TUNEMEM_STRLEN+1));
@@ -1956,7 +1956,7 @@ static void MENU_NameEdit_Init(void)
   DISP_Clr();
   DISP_Str(0, 0,str_index,0);
   
-  EEPROM_Read((uint8_t)&ee_tunemem + (sizeof(tunemem_t) * MENU_var.nameedit.mem_index) , &MENU_var.nameedit.tunemem, sizeof(tunemem_t));
+  EEPROM_Read(EEPROM_ADDR(&ee_tunemem) + (sizeof(tunemem_t) * MENU_var.nameedit.mem_index) , &MENU_var.nameedit.tunemem, sizeof(tunemem_t));
   MENU_var.nameedit.cursor=0;
   MENU_var.nameedit.button_repeat_delay = BUTTON_LONG_REPEAT_DELAY_MAX;
   BUTTON_Reset();
@@ -2019,8 +2019,8 @@ static void MENU_NameEdit_Run(void)
      //Save
      if(MENU_var.nameedit.cursor == TUNEMEM_STRLEN)
      {
-       MENU_var.nameedit.tunemem.relays = UTILI_Get_LC_Relays(); //Save current relais
-       EEPROM_Write((uint8_t)ee_tunemem + (sizeof(tunemem_t) * MENU_var.nameedit.mem_index) , &MENU_var.nameedit.tunemem, sizeof(tunemem_t));
+       MENU_var.nameedit.tunemem.relays = UTILI_Get_LC_Relays(); // save present relays
+       EEPROM_Write(EEPROM_ADDR(ee_tunemem) + (sizeof(tunemem_t) * MENU_var.nameedit.mem_index) , &MENU_var.nameedit.tunemem, sizeof(tunemem_t));
        MENU_Init();
        return;
      }
@@ -2053,8 +2053,8 @@ static void MENU_StartupSave_Init(void)
   char str_index[3] = "0:";
   DISP_Str(0, 1,str_index,0);
   
-  EEPROM_Read((uint8_t)&ee_tunemem , &MENU_var.startupsave.tunemem, sizeof(tunemem_t));
-  MENU_var.startupsave.str_terminate=0; //Terminat string 
+  EEPROM_Read(EEPROM_ADDR(&ee_tunemem) , &MENU_var.startupsave.tunemem, sizeof(tunemem_t));
+  MENU_var.startupsave.str_terminate=0; // terminate string 
   DISP_Str(2, 1,MENU_var.startupsave.tunemem.str_name, 0);  
   
   MENU_var.startupsave.cursor=0; 
@@ -2080,8 +2080,8 @@ static void MENU_StartupSave_Run(void)
      //Save
      if(MENU_var.startupsave.cursor == 0)
      {
-       MENU_var.startupsave.tunemem.relays = UTILI_Get_LC_Relays(); //Save current relais      
-       EEPROM_Write((uint8_t)ee_tunemem , &MENU_var.startupsave.tunemem, sizeof(tunemem_t));
+       MENU_var.startupsave.tunemem.relays = UTILI_Get_LC_Relays(); // save current relay      
+       EEPROM_Write(EEPROM_ADDR(ee_tunemem) , &MENU_var.startupsave.tunemem, sizeof(tunemem_t));
      }
       
      MENU_Init();
