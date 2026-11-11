@@ -33,6 +33,13 @@
  * Added defines for P0 and P1 and cal gain and offset for "Default"
  * hardware and QRP variant.
  * 
+ * Modified 05-Nov-2026 2E0UMK
+ * Added constants for DISP_LCD_WriteBitmap() ("sparse" write / erase.)
+ * 
+ * Modified 06-Nov-2026 2E0UMK
+ * Added a switch and some parameters to facilitate a simulated RF input at
+ * the ADC.
+ * 
  */
 
 #ifndef DEFINES_H
@@ -166,7 +173,7 @@ extern "C"
 #define REL_IND_7           LATAbits.LATA4 
 #define REL_IND_7_DIR       TRISAbits.TRISA4      
  
-//---- Boolean Flags ----------------------------------------------------    
+//---- Boolean Flags and Macros -----------------------------------------------    
 
 // these are bit positions (not masks)
 #define FLAG_DISPLAY_ROTATE    0 // rotate display
@@ -174,7 +181,7 @@ extern "C"
 #define FLAG_WAKE_ON_RF        2 // 1 = Wake on RF, 0 = Button only (DigiMode)
 #define FLAG_RELAY_SAVE        3 // 1 = Drop relays on sleep (QRP only), 0 = Keep match
 #define FLAG_DISPLAY_LARGE     4 // large PWR/SWR display
-//#define FLAG_5                 5 
+#define FLAG_SIM_ADC           5 // use simulated ADC input    
 //#define FLAG_6                 6
 //#define FLAG_7                 7
 #define FLAG_DISPLAY_ROTATE_MASK  (1 << FLAG_DISPLAY_ROTATE)
@@ -182,7 +189,10 @@ extern "C"
 #define FLAG_WAKE_ON_RF_MASK      (1 << FLAG_WAKE_ON_RF)
 #define FLAG_RELAY_SAVE_MASK      (1 << FLAG_RELAY_SAVE)
 #define FLAG_DISPLAY_LARGE_MASK   (1 << FLAG_DISPLAY_LARGE)
+#define FLAG_SIM_ADC_MASK         (1 << FLAG_SIM_ADC)
 
+//---- Default calibration gains and offsets for various hardware mods --------    
+    
 // NB: cal_gain 9600 compensates for real-world diode forward-voltage knee
 // variations at typical HF frequencies.
 // (No 1:5 tandem match (current) transformer (transcoupler) modification.)
@@ -197,6 +207,17 @@ extern "C"
 #define DEF_CAL_P0_QRP          10
 #define DEF_CAL_P1_QRP          30
 
+//---- Write / clear flags for drawing teh LCD characters ---------------------    
+
+#define LCD_WRITE_BITMAP       0 // constants for DISP_LCD_WriteBitmap()
+#define LCD_CLEAR_SEGMENTS     1
+
+//---- Parameters to create sawtooth mock ADC input for debugging -------------    
+    
+#define RAMP_MIN          0    // bottom of sawtooth
+#define RAMP_MAX       1023    // 1023 would be 10-bit ADC full scale
+#define RAMP_INC          7    // increment per ramp update
+#define RAMP_PERIOD      20    // milliseconds between updates
 
 //----------------------------------------------------------------------    
 
@@ -250,7 +271,7 @@ typedef struct
     int16_t sleep_delay_sec;
 
     uint8_t bypass_enable;
-    uint16_t bypass_save_relais;
+    uint16_t bypass_save_relays;
     
     int16_t cal_point[2]; // Holds the raw ADC samples corresponding to two known forward power references.
     int16_t cal_offset; // Sets the baseline noise floor in ADC counts or millivolts.
@@ -286,7 +307,7 @@ const char str_YAF[]       = "EXT-YAF";
 const char str_Version[]   =  "V0.69.5"; // 2E0UMK - LCD complete
 const char str_YetAnother[] = "YetAnother";
 const char str_Firmware[] = "Firmware";
-const char str_Hardware[] = "Hardware "; // space so it works (!) as a menu item
+const char str_Hardware[] = "Hardware";
 
 const char str_designed[] = "designed";
 const char str_by[] = "by";
@@ -344,7 +365,7 @@ const char str_MENU_RelTest[]       =  "Test      ";
 const char str_MENU_Cal[]           =  "Calibrate ";
 const char str_MENU_Setup[]         =  "Setup     ";
 const char str_MENU_About[]         =  "About     ";
-  
+const char str_MENU_Hardware[]      =  "Hardware  "; // spaces so they work as a menu item
 
 const char str_SpaceLine[] = "          "; // FUTURE: shorten these strings and use the center function
 const char str_WaitForHF[] = " Await Tx ";
@@ -353,13 +374,13 @@ const char str_Break[]     = "  Break   ";
 const char str_PWR_low[]   = " PWR low  ";
 const char str_Ready[]     = "  Ready   ";
 
- const char* str_TUNE_State[6] ={
- str_SpaceLine,
- str_WaitForHF,
- str_Running,
- str_Break,
- str_PWR_low,
- str_Ready};
+const char* str_TUNE_State[6] = {
+  str_SpaceLine,
+  str_WaitForHF,
+  str_Running,
+  str_Break,
+  str_PWR_low,
+  str_Ready };
 
 
  const char NameEditChar[] =" 0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ?!/+-#%$_";
