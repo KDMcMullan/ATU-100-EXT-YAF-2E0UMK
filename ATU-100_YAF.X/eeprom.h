@@ -23,6 +23,11 @@
  * 
  * Modified 05-Nov-2026 2E0UMK
  * Reverted back to 8 bit address in EEPROM write.
+ * Added intermediate in order to remove warnings without suppressing them.
+ * 
+ * Modified 06-Nov-2026 2E0UMK
+ * Added default strings for the tune save slots. Selfishly in order of my
+ * favourite bands and available antennas!
  * 
  */
 
@@ -34,11 +39,14 @@ extern "C"
 {
 #endif
 
-  
-__eeprom  int16_t ee_tune_stop_swr = 120;
-__eeprom  int16_t ee_tune_auto_swr = 140;
+// intermediate of the correct address type, in order to remove warnings
+// without blindly suppressing them
+#define EEPROM_ADDR(p) ((uint8_t)(uintptr_t)(p))
+    
+__eeprom  int16_t ee_tune_stop_swr  = 120;
+__eeprom  int16_t ee_tune_auto_swr  = 140;
 __eeprom  uint8_t ee_tune_auto_enable = 0;
-__eeprom  uint8_t ee_sleep_enable = 0;
+__eeprom  uint8_t ee_sleep_enable    =  0;
 __eeprom  int16_t ee_sleep_delay_sec = 10; // need to address this: the value 10 is in the menu, but screensaver is disabled by default.
 
 __eeprom int16_t ee_cal_point_0 = DEF_CAL_P0_STD;
@@ -48,16 +56,16 @@ __eeprom  int16_t ee_cal_gain = DEF_CAL_GAIN_STD; // originally 12000, which was
 
 
 __eeprom  tunemem_t ee_tunemem[TUNEMEM_ITEMS] ={
-  {0,"Startup "}, //0
-  {0,"        "}, //1
-  {0,"        "}, //2
-  {0,"        "}, //3
-  {0,"        "}, //4
-  {0,"        "}, //5
-  {0,"        "}, //6
-  {0,"        "}, //7
-  {0,"        "}, //8
-  {0,"        "} //9
+  {0,"40m Loop"}, //0
+  {0,"20m Loop"}, //1
+  {0,"15m Loop"}, //2
+  {0,"10m LoLp"}, //3
+  {0,"17m Dipl"}, //4
+  {0,"15m Dipl"}, //5
+  {0,"30m Dipl"}, //6
+  {0,"10m HiLp"}, //7
+  {0,"80m Dipl"}, //8
+  {0,"60m Loop"}  //9
   
 };
           
